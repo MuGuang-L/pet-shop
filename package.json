@@ -1,0 +1,26 @@
+{
+  "name": "pet-shop-development",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "start": "node server/index.js",
+    "build": "node scripts/build.js",
+    "check": "node scripts/check.js",
+    "db:start": "node scripts/mongo-local.js",
+    "db:backup": "node scripts/mongo-backup.js backup",
+    "db:restore": "node scripts/mongo-backup.js restore",
+    "test:mongo": "node scripts/test-mongo.js",
+    "setup:accounts": "node scripts/setup-accounts.js",
+    "export:buyer": "node scripts/export-buyer.js"
+  },
+  "engines": {
+    "node": ">=20.19"
+  },
+  "dependencies": {
+    "mongodb": "6.21.0"
+  },
+  "devDependencies": {
+    "mongodb-memory-server-core": "10.4.3"
+  }
+}

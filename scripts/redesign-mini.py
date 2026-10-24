@@ -1,0 +1,29 @@
+from pathlib import Path
+root=Path(__file__).resolve().parents[1]
+p=root/'miniprogram/pages/shop/index.wxml'
+s=p.read_text(encoding='utf-8')
+start=s.index(' <view class="brand">'); end=s.index(' <view wx:if="{{busy}}"')
+s=s[:start]+''' <view class="brand"><view class="brand-left"><view class="brand-mark">w</view><view>爪爪小铺<text>LITTLE PAWS STORE</text></view></view><text class="store-tag">单店自营</text></view>
+ <view class="nav"><button class="{{tab === 'catalog' ? 'active' : ''}}" data-tab="catalog" bindtap="tab"><image src="/assets/nav-home.png"/>首页</button><button class="{{tab === 'category' ? 'active' : ''}}" data-tab="category" bindtap="tab"><image src="/assets/nav-category.png"/>宠物百货</button><button class="{{tab === 'cart' ? 'active' : ''}}" data-tab="cart" bindtap="tab"><image src="/assets/nav-cart.png"/>购物车 {{cart.length || ''}}</button><button class="{{tab !== 'catalog' && tab !== 'category' && tab !== 'cart' ? 'active' : ''}}" data-tab="account" bindtap="tab"><image src="/assets/nav-account.png"/>个人中心</button></view>
+''' + s[end:]
+start=s.index(' <block wx:if="{{tab === \'catalog\'');end=s.index(' <block wx:if="{{tab === \'cart\'')
+s=s[:start]+''' <block wx:if="{{tab === 'catalog' || tab === 'category'}}">
+  <block wx:if="{{tab === 'catalog'}}"><view class="hero"><image class="hero-image" src="/assets/hero.png" mode="aspectFill"/><view class="hero-copy"><text class="eyebrow">LITTLE PAWS, BIG LOVE</text><view class="headline">好好吃饭，<view>快乐长大。</view></view><text class="hero-subtitle">给毛孩子的日常小美好</text><button class="hero-button" data-value="全部" bindtap="browseCategory">挑一份喜欢的 →</button></view></view><view class="benefits"><text>用心选好物</text><text>单店自营</text><text>普通快递 · 暂定</text></view><view class="category-tiles"><view data-value="主粮" bindtap="browseCategory"><image src="/assets/cat.png"/>猫咪主粮</view><view data-value="玩具" bindtap="browseCategory"><image src="/assets/dog.png"/>快乐玩耍</view><view data-value="清洁" bindtap="browseCategory"><image src="/assets/care.png"/>洗护清洁</view><view data-value="全部" bindtap="browseCategory"><image src="/assets/toy.png"/>全部好物</view></view><view class="section-heading"><view><text class="eyebrow">EVERYDAY FAVOURITES</text><view class="heading">毛孩子的心头好</view></view><text data-value="全部" bindtap="browseCategory">查看全部 →</text></view></block>
+  <view wx:else class="heading">宠物百货</view>
+  <view class="{{tab === 'category' ? 'catalog-layout' : ''}}"><scroll-view wx:if="{{tab === 'category'}}" scroll-y class="categories sidebar"><button wx:for="{{categories}}" wx:key="*this" class="{{category === item ? 'chosen' : ''}}" data-value="{{item}}" bindtap="category">{{item}}</button></scroll-view>
+  <view class="grid {{tab === 'category' ? 'product-list' : ''}}"><view class="card" wx:for="{{tab === 'catalog' ? products : visible}}" wx:key="id" data-id="{{item.id}}" bindtap="detail"><image src="{{item.displayImage}}" mode="aspectFill"/><view class="card-copy"><text class="tag">{{item.category}}精选</text><view class="title">{{item.displayName}}</view><view class="row"><view class="price"><text>¥</text>{{item.priceText}}</view><view class="add-small">＋</view></view></view></view><view wx:if="{{tab === 'category' && !visible.length}}" class="empty">好物正在准备中<view>试试其他分类吧</view></view></view></view>
+ </block>
+''' + s[end:]
+s=s.replace('<view wx:if="{{!cart.length}}" class="empty">还没有好物，去选一件吧。','<view wx:if="{{!cart.length}}" class="empty"><image src="/assets/empty.png" mode="aspectFit"/><view class="empty-title">购物车还空着呢</view><view>把毛孩子的心愿，装进购物车吧</view>')
+s=s.replace('<view class="panel" wx:for="{{cart}}" wx:key="skuId"><view>{{item.name}}</view><text>{{item.spec}}</text>','<view class="panel cart-item" wx:for="{{cart}}" wx:key="skuId"><image src="{{item.displayImage}}" mode="aspectFill"/><view class="cart-copy"><view>{{item.name}}</view><text class="muted">{{item.spec}} · ¥{{item.priceText}}</text>')
+s=s.replace('<text>{{item.qty}}</text><button size="mini" data-i="{{index}}" data-delta="1" bindtap="qty">＋</button></view></view>','<text>{{item.qty}}</text><button size="mini" data-i="{{index}}" data-delta="1" bindtap="qty">＋</button></view></view></view>')
+# Give checkout an obvious path to address entry.
+s=s.replace('<view>商品预估 ¥{{cartTotal}}</view>','<button class="text-button" data-tab="addresses" bindtap="tab">管理收货地址 →</button><view>商品预估 ¥{{cartTotal}}</view>')
+s=s.replace('<view class="hero"><view class="heading">你好，宠物家长</view><text>样例账号 · 无需头像或位置授权</text></view>','<view class="account-hero"><image class="avatar" src="/assets/cat.png"/><view><text class="eyebrow">HELLO, PAW FRIEND</text><view class="heading">你好，宠物家长</view><text class="muted">和毛孩子一起，把日子过得可爱。</text></view></view>')
+s=s.replace('<view class="heading">商家工作台</view>','<view class="merchant-banner"><text class="eyebrow">PAW STORE STUDIO</text><view class="heading">商家工作台</view><text>把好物上架，把每一份喜欢送出去。</text></view>')
+s=s.replace('<view>{{item.name}} · {{item.active ? \'上架中\' : \'已下架\'}}</view>','<image class="admin-image" src="{{item.displayImage}}" mode="aspectFill"/><view>{{item.name}} · {{item.active ? \'上架中\' : \'已下架\'}}</view>')
+s=s.replace('<button class="close" bindtap="close">关闭</button><view class="heading">{{detail.name}}</view><text>{{detail.description}}</text>','<button class="close" bindtap="close">×</button><image class="detail-art" src="{{detail.displayImage}}" mode="aspectFill"/><view class="detail-intro"><view class="tag">样例商品 · 单店精选</view><view class="heading">{{detail.displayName}}</view><text class="description">{{detail.description}}</text></view>')
+s=s.replace('<view class="row"><button class="black" disabled="{{!detail.skus[skuIndex].stock}}"','<view class="detail-actions"><button class="black" disabled="{{!detail.skus[skuIndex].stock}}"')
+s=s.replace('全部为虚构样例商品','样例商品')
+p.write_text(s,encoding='utf-8')
+print('Mini-program layout updated')

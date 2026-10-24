@@ -1,0 +1,69 @@
+{
+  "_id": "singleton",
+  "value": {
+    "version": 1,
+    "sequence": 0,
+    "products": [
+      {
+        "id": "food",
+        "name": "样例 · 鲜肉猫粮",
+        "category": "主粮",
+        "description": "虚构样例商品，用于流程验收。正式销售前填写配料、适用年龄、保质期及生产信息。",
+        "image": "",
+        "active": true,
+        "skus": [
+          {
+            "id": "food-1",
+            "name": "1kg 体验装",
+            "price": 3900,
+            "stock": 20
+          },
+          {
+            "id": "food-2",
+            "name": "2kg 家庭装",
+            "price": 7200,
+            "stock": 10
+          }
+        ]
+      },
+      {
+        "id": "toy",
+        "name": "样例 · 绳结玩具",
+        "category": "玩具",
+        "description": "虚构样例。适用于互动玩耍，规格与材质仅用于演示。",
+        "image": "",
+        "active": true,
+        "skus": [
+          {
+            "id": "toy-1",
+            "name": "薄荷绿 / M",
+            "price": 1900,
+            "stock": 30
+          }
+        ]
+      },
+      {
+        "id": "care",
+        "name": "样例 · 宠物梳",
+        "category": "清洁",
+        "description": "虚构样例。正式商品请填写材质、尺寸和使用注意事项。",
+        "image": "",
+        "active": true,
+        "skus": [
+          {
+            "id": "care-1",
+            "name": "标准款",
+            "price": 2900,
+            "stock": 15
+          }
+        ]
+      }
+    ],
+    "orders": [],
+    "stockMovements": [],
+    "addresses": {},
+    "keys": {},
+    "events": {},
+    "shippingFee": 800
+  }
+}

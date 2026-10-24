@@ -1,0 +1,12 @@
+{
+  "pages": [
+    "pages/shop/index"
+  ],
+  "window": {
+    "navigationBarTitleText": "爪爪小铺 · 样例",
+    "navigationBarBackgroundColor": "#faf8f3",
+    "navigationBarTextStyle": "black",
+    "backgroundColor": "#faf8f3"
+  },
+  "sitemapLocation": "sitemap.json"
+}

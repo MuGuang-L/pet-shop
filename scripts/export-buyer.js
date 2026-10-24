@@ -1,0 +1,10 @@
+const fs=require('node:fs'),path=require('node:path'),cp=require('node:child_process');
+const root=path.resolve(__dirname,'..'),stamp=new Date().toISOString().replace(/[:.]/g,'-'),out=path.join(root,'.local/handoff/buyer-client-'+stamp);
+fs.mkdirSync(out,{recursive:true});
+fs.cpSync(path.join(root,'miniprogram'),path.join(out,'miniprogram'),{recursive:true,filter:p=>!['domain.js','aftersales.js'].includes(path.basename(p))});
+fs.copyFileSync(path.join(root,'docs/BUYER-API.md'),path.join(out,'BUYER-API.md'));
+fs.writeFileSync(path.join(out,'project.config.json'),JSON.stringify({description:'爪爪小铺小程序侧联调',miniprogramRoot:'miniprogram/',compileType:'miniprogram',appid:'touristappid',projectname:'pet-shop-buyer',setting:{es6:true,enhance:true,urlCheck:true}},null,2));
+fs.writeFileSync(path.join(out,'README.md'),'# 小程序侧源码包\n\n使用微信开发者工具导入本目录，配置有权限使用的 AppID 或测试模式。\nminiprogram/config.js 的 apiBase 为服务侧 HTTPS 根地址；登录使用单独分配的测试账号。\n\n无需安装数据库或服务侧依赖。接口见 BUYER-API.md，字段变更需确认两侧兼容性。\n本包不含账号密码、数据库数据或服务侧源码。\n');
+const zip=out+'.zip';
+cp.execFileSync('python',['-c','import sys,zipfile,pathlib; p=pathlib.Path(sys.argv[1]); z=zipfile.ZipFile(sys.argv[2],"w",zipfile.ZIP_DEFLATED); [z.write(f,f.relative_to(p)) for f in p.rglob("*") if f.is_file()]; z.close()',out,zip]);
+console.log(path.relative(root,zip));

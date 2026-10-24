@@ -1,0 +1,13 @@
+Built-in imagegen; originals retained as PNG, page copies JPEG quality 80 (encoding only).
+
+bowl-v3.png / bowl-v3.jpg:
+Create a premium pet boutique ecommerce catalog photograph, square composition, a single sage-green ceramic pet bowl on warm ivory seamless background, a small folded oatmeal linen cloth beside it, soft natural window light, realistic matte ceramic texture, restrained forest green and cream palette, clean spacious composition, product fully visible, no text no logo no watermark. This is an original optional demonstration image for a pet store product template. Generate one image.
+
+bed-v3.png / bed-v3.jpg:
+Original square pet boutique product photograph, premium cream and sage green palette matching a quiet natural pet store. One oval oatmeal boucle cat bed with low soft padded rim and sage linen inner cushion, fully visible centered on warm ivory studio floor, gentle window shadow, realistic fabric detail, no animal, no lettering, no logos. Attractive carefully composed ecommerce optional demo image.
+
+snack-v3.png / snack-v3.jpg:
+Square original premium pet shop ecommerce demonstration product photograph: a matte cream resealable pouch with a sage green lower band, absolutely no text or logo, next to small neat freeze-dried chicken cubes in a shallow ceramic dish. Warm ivory studio surface, soft window light, understated forest green accents, generous margins, full pouch visible, sharp natural texture, elegant clean product composition, no claims or branding.
+
+hero-calm-v3.png / hero-calm-v3.jpg:
+Wide landscape 3:2 original editorial pet boutique hero photograph. Warm ivory plaster wall and floor with subtle soft sunlight. On right half only, a young silver tabby cat reclining on an oatmeal round pet bed, one sage green ceramic bowl nearby, a little natural foliage at far right. Left 55 percent is quiet pale ivory negative space for dark green website headline, no objects there. Gentle wholesome lifestyle mood, realistic fur and textiles, sophisticated cream and sage palette. Keep cat head around upper-right third for responsive cropping. No text no logo no watermark. Original artwork, not based on any brand.

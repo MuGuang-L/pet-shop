@@ -1,0 +1,19 @@
+node_modules/
+.env*
+project.private.config.json
+*.log
+.local/
+
+# Local tunnel clients/configs may contain authentication tokens.
+/natapp.exe
+/config.ini
+/run_natapp.bat
+/ngrok.yml
+/ngrok.yaml
+/.cloudflared/
+*.pem
+*.key
+
+# Local verification captures may contain workstation paths or account UI.
+/evidence/
+/AI-HANDOFF-*.md
