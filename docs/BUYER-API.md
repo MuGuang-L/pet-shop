@@ -76,6 +76,8 @@
 
 服务侧商品编辑增加 `revision`：`merchantProducts` 返回版本号，`saveProduct` 更新已有商品时必须原样提交；版本过期或缺失返回 `PRODUCT_REVISION_CONFLICT`。此要求仅针对商家修改商品，不增加买家下单必填字段。
 
+新增地址可带 `requestKey`（8～80 位字母、数字、横线、下划线），当前地址编辑表单内重试应复用。同账号同 key 相同输入只新增一次；已提交后改输入返回 `CREATE_REQUEST_CONFLICT`，先刷新地址列表核对。参数为可选，不影响旧客户端。读取动作最多自动重试一次，写入不自动重发；详细规则见 [网络可靠性](NETWORK-RELIABILITY.md)。
+
 ### 订单和状态
 
 订单主要字段：`id,userId,lines,address,subtotal,shippingFee,total,status,fulfillment,shipping,refund,refundHistory,createdAt,updatedAt,expiresAt`。

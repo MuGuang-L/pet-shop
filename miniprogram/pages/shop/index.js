@@ -36,7 +36,7 @@ Page({
  async loadOrderPage(){const merchant=false;const p=await api.call('ordersPage',{page:this.data.orderPageNumber,q:this.data.orderQuery,status:this.data.orderStatus,fulfillment:this.data.fulfillmentFilter});this.setData({[merchant?'merchantOrders':'orders']:p.items.map(order),orderPageNumber:p.page,orderPages:p.pages,orderTotal:p.total});},
  cartTotal(){const cart=this.data.cart.map(l=>({...l,displayImage:picture(l),priceText:money(l.price)}));wx.setStorageSync('pet-cart',cart);const subtotal=cart.reduce((sum,l)=>sum+l.price*l.qty,0),d=this.data.shopSettings?.delivery;const fee=this.data.deliveryMode==='PICKUP'?0:d?(d.freeAbove!==null&&subtotal>=d.freeAbove?0:d.fee):800;this.setData({cart,cartTotal:money(subtotal),shippingText:money(fee),cartAmountText:money(subtotal+fee)});},
  qty(e){const i=Number(e.currentTarget.dataset.i),delta=Number(e.currentTarget.dataset.delta);const cart=this.data.cart.map(x=>({...x})),line=cart[i];const qty=line.qty+delta;const product=this.data.products.find(p=>p.id===line.productId),sku=product&&product.skus.find(k=>k.id===line.skuId);if(delta>0&&!this.validCartQty(qty,sku))return;line.qty=qty;this.setData({cart:cart.filter(x=>x.qty>0)});this.cartTotal();this.checkoutKey=null;},
- newAddress(){this.setData({addressForm:{},addressEditing:true});},
+ newAddress(){this.setData({addressForm:{requestKey:'address-'+Date.now()+'-'+Math.random().toString(36).slice(2)},addressEditing:true});},
  closeAddress(){this.setData({addressEditing:false});},
  deliveryMode(e){this.setData({deliveryMode:e.currentTarget.dataset.value});this.checkoutKey=null;this.cartTotal();},
  pickupField(e){this.setData({['pickupContact.'+e.currentTarget.dataset.key]:e.detail.value});this.checkoutKey=null;},

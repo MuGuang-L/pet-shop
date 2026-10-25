@@ -45,6 +45,14 @@ function execute(state,actor,action,input={},options={}) {
   expire(s,now);
   const owned=()=>{const o=s.orders.find(o=>o.id===input.id);need(o,'ORDER_NOT_FOUND');need(o.userId===actor.id || actor.merchant===true,'FORBIDDEN');return o;};
   if(aftersales.actions.has(action)){const result=aftersales.handle(s,actor,action,input,{...options,now},{release,address,reservedStock});return {state:s,result:clone(result)};}
+  // New-item retries may follow a committed write whose response was lost.
+  let mutationKey,mutationFingerprint;
+  if(['saveProduct','saveAddress'].includes(action)&&!input.id&&input.requestKey!==undefined){
+    if(action==='saveProduct')merchant();
+    need(typeof input.requestKey==='string'&&/^[a-zA-Z0-9_-]{8,80}$/.test(input.requestKey),'INVALID_REQUEST_KEY');
+    mutationKey=JSON.stringify(['create',action,actor.id,input.requestKey]);mutationFingerprint=JSON.stringify(input);
+    if(s.keys[mutationKey]){need(s.keys[mutationKey].fingerprint===mutationFingerprint,'CREATE_REQUEST_CONFLICT');return {state:s,result:clone(s.keys[mutationKey].result)};}
+  }
   let result;
   switch(action) {
     case 'shopSettings': result=shopSettings.publicSettings(s,now);break;
@@ -93,6 +101,7 @@ function execute(state,actor,action,input={},options={}) {
     case 'expire':merchant();result={ok:true};break;
     default:fail('UNKNOWN_ACTION');
   }
+  if(mutationKey)s.keys[mutationKey]={fingerprint:mutationFingerprint,result:clone(result)};
   return {state:s,result:clone(result)};
 }
 module.exports={seed,execute,expire,settleVerifiedPayment,orderQuery,orderPage};

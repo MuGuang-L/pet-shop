@@ -1,12 +1,40 @@
 const studio=Studio,role='merchant';let tab='orders',storefront={...studio.defaults},homeContent={...studio.homeDefaults},storeDraft=null,orderSearch='',orderStatus='ALL',orderPageNumber=1,fulfillmentFilter='ALL',currentOrder=null,editing=null,adminProducts=[];
 let viewRevision=0,productQuery='',productCategory='ALL',productState='ALL',productSort='default',savingProduct=false;
+let savingOrder=false;
 let orderQueue='todo',modalDirty=false,modalKind='',pendingUploads=0,skuSequence=0,originalSkuIds=new Set(),discardAction=null;
 const $=id=>document.getElementById(id),money=n=>(n/100).toFixed(2),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const states={PENDING:'待付款',PAID:'待履约',SHIPPED:'待收货',COMPLETED:'已完成',CANCELLED:'已取消',EXPIRED:'已超时',REFUND_REQUESTED:'售后申请中',REFUNDING:'退款处理中',REFUNDED:'已退款'};
 const art=p=>p.image||'/assets/'+(['food','toy','care'].includes(p.id||p.productId)?(p.id||p.productId)+'-v2':'empty-v2')+'.jpg';
 const homeFields=[['headline','首页大标题',24],['subtitle','首页副标题',40],['featuredTitle','精选栏目标题',18],['featuredIntro','精选栏目说明',60],['newTitle','上新栏目标题',18]];
 
-async function request(url,input={}){const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify(input)});const out=await r.json();if(!out.ok){if(r.status===401)loginScreen();throw Error(({AUTH_REQUIRED:'请先登录',FORBIDDEN:'此账号没有商家权限',INVALID_CREDENTIALS:'账号或密码不正确',LOGIN_RATE_LIMIT:'尝试过多，请稍后再试',PRODUCT_REVISION_CONFLICT:'商品或库存已变化，本次未保存。请保留需要的编辑内容，重新打开商品后核对库存再保存。',PRODUCT_NAME:'请填写商品名称（最多 80 字）',INVALID_STOCK:'库存须为 0 到 100000 的整数',SKU_NAME:'请填写每个规格的名称',INVALID_PRICE:'请检查售价，金额须大于 0 且最多两位小数',RESERVED_SKU_CANNOT_REMOVE:'该规格仍有未结束订单，请保留原规格',INVALID_STATE:'订单状态已变化，请刷新后重试'})[out.error]||out.error);}return out.data;}
+// Only repeat reads. An interrupted write may already have committed.
+const readActions=new Set(['catalog','storefront','homeContent','identity','merchantProducts','merchantOrders','merchantOrdersPage','order','tracking','shopSettings','quoteOrder']);
+const requestMessages={CREATE_REQUEST_CONFLICT:'上次新增可能已保存。请先关闭编辑并刷新商品列表核对，不要改动原请求重复新增。',AUTH_REQUIRED:'请先登录',FORBIDDEN:'此账号没有商家权限',INVALID_CREDENTIALS:'账号或密码不正确',LOGIN_RATE_LIMIT:'尝试过多，请稍后再试',PRODUCT_REVISION_CONFLICT:'商品或库存已变化，本次未保存。请保留需要的编辑内容，重新打开商品后核对库存再保存。',PRODUCT_NAME:'请填写商品名称（最多 80 字）',INVALID_STOCK:'库存须为 0 到 100000 的整数',SKU_NAME:'请填写每个规格的名称',INVALID_PRICE:'请检查售价，金额须大于 0 且最多两位小数',RESERVED_SKU_CANNOT_REMOVE:'该规格仍有未结束订单，请保留原规格',INVALID_STATE:'订单状态已变化，请刷新后重试'};
+async function requestOnce(url,body){
+  const controller=new AbortController();let timer;
+  try{
+    const result=await Promise.race([
+      fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body,signal:controller.signal}).then(async r=>({status:r.status,out:await r.json()})),
+      new Promise((_,reject)=>{timer=setTimeout(()=>{reject(Error('REQUEST_TIMEOUT'));controller.abort();},15000);})
+    ]);
+    if(result.status===401){loginScreen();throw Object.assign(Error('请先登录'),{business:true});}
+    if([408,429,500,502,503,504].includes(result.status))throw Error('TEMPORARILY_UNAVAILABLE');
+    const out=result.out;
+    if(!out||typeof out.ok!=='boolean')throw Error('INVALID_RESPONSE');
+    if(result.status!==200||!out.ok)throw Object.assign(Error(requestMessages[out.error]||out.error||'操作未完成'),{business:true});
+    if(!(url==='/upload'?'path' in out:'data' in out))throw Error('INVALID_RESPONSE');
+    return url==='/upload'?out.path:out.data;
+  }catch(e){if(e.business)throw e;throw Object.assign(Error('网络或服务暂时不可用'),{retryable:true});}
+  finally{clearTimeout(timer);}
+}
+async function request(url,input={}){
+  const canRetry=url==='/auth/me'||url==='/api'&&readActions.has(input.action),body=JSON.stringify(input);
+  for(let attempt=0;attempt<2;attempt++)try{return await requestOnce(url,body);}catch(e){
+    if(e.retryable&&canRetry&&attempt===0){await new Promise(r=>setTimeout(r,300));continue;}
+    if(e.retryable)e.message=canRetry?'网络或服务暂时不可用，请稍后重新加载。':'未收到确认结果，请先核对是否已保存或订单状态是否已更新，勿连续重复提交。';
+    throw e;
+  }
+}
 async function api(action,input={}){return request('/api',{action,input});}
 function loginScreen(){viewRevision++;modalDirty=false;modalKind='';discardAction=null;$('discard-dialog').close();$('workspace').hidden=true;$('login').hidden=false;$('modal').close();}
 async function login(e){e.preventDefault();const button=$('login-button');button.disabled=true;try{const out=await request('/auth/login',{username:$('username').value,password:$('password').value});if(!out.identity.merchant){await request('/auth/logout');throw Error('请使用商家账号登录；买家账号用于小程序。');}$('password').value='';await boot();}catch(e){$('login-error').textContent=e.message;}finally{button.disabled=false;}}
@@ -80,7 +108,7 @@ function resetProducts(){productQuery='';productCategory='ALL';productState='ALL
 function storePage(){return `<div class="store-preview"><div class="store-preview-copy"><h2>首页预览</h2><p>展示当前保存的主图与标题。<br>修改后需点击保存才会生效。</p><span class="badge neutral">当前已保存的内容</span></div><div class="shop-preview-card"><img src="${esc(storefront.hero)}" alt="当前首页主视觉"><div><small>爪爪小铺</small><h3>${esc(homeContent.headline).replace(/\n/g,'<br>')}</h3><p>${esc(homeContent.subtitle)}</p></div></div></div>
 <div class="store-options"><article class="work-panel store-option"><div class="option-top"><span class="service-icon">${lineIcon('shop')}</span><span class="muted">图片素材</span></div><h2>店铺图片</h2><p>首页主视觉、分类与个人中心图片。上传实拍，也可以从备选图库开始。</p><div class="store-thumbnails">${['cat','dog','care','toy'].map(k=>`<img src="${esc(storefront[k])}" alt="" loading="lazy">`).join('')}</div><button onclick="storeEditor()">管理店铺图片 <span aria-hidden="true">↗</span></button></article><article class="work-panel store-option"><div class="option-top"><span class="service-icon">${lineIcon('heart')}</span><span class="muted">页面文案</span></div><h2>首页内容</h2><p>编辑首页标题、精选栏目、场景说明和分类跳转。</p><div class="editorial-sample"><small>当前精选栏目</small><strong>${esc(homeContent.featuredTitle)}</strong><p>${esc(homeContent.featuredIntro)}</p></div><button onclick="homeEditor()">编辑首页内容 <span aria-hidden="true">↗</span></button></article></div><p class="workspace-footnote">修改在点击保存后生效，小程序侧下次读取时即可看到更新。</p>`;}
 
-function error(e){$('error').textContent=e.message||String(e);$('error').style.display='block';if($('modal').open){let node=$('modal').querySelector('.modal-error');if(!node){node=document.createElement('p');node.className='modal-error';$('modal').appendChild(node);}node.textContent=e.message;node.style.cssText='padding:16px;color:#944b32';}}
+function error(e){$('error').textContent=e.message||String(e);$('error').style.display='block';if($('modal').open){let node=$('modal').querySelector('.modal-error');if(!node){node=document.createElement('p');node.className='modal-error';($('modal').querySelector('.editor-footer')||$('modal')).appendChild(node);}node.textContent=e.message;node.style.cssText='padding:16px;color:#944b32';}}
 window.addEventListener('unhandledrejection',e=>{e.preventDefault();error(e.reason)});
 window.addEventListener('error',e=>{if(e.error){e.preventDefault();error(e.error);}});
 function modal(html,detail=false,kind='order'){modalKind=kind;modalDirty=false;$('modal').innerHTML='<button class="modal-close" aria-label="关闭弹层" onclick="closeModal()">×</button>'+(detail?html:'<div class="modal-content">'+html+'</div>');if(!$('modal').open)$('modal').showModal();$('modal').scrollTop=0;}
@@ -89,13 +117,13 @@ function resolveDiscard(allow){const action=discardAction;discardAction=null;$('
 $('discard-dialog').addEventListener('cancel',e=>{e.preventDefault();resolveDiscard(false);});
 function markDirty(){modalDirty=true;const note=$('draft-state');if(note)note.textContent='有未保存的修改';}
 function closeModal(force=false){
-  if(!force&&savingProduct){error(Error('正在保存，请稍候。'));return false;}
+  if(!force&&(savingProduct||savingOrder)){error(Error('正在保存，请稍候。'));return false;}
   if(!force&&(modalDirty||pendingUploads)){askDiscard(()=>closeModal(true));return false;}
   modalDirty=false;modalKind='';$('modal').close();return true;
 }
 window.addEventListener('input',e=>{if($('modal').open&&e.target.closest?.('#modal'))markDirty();});
 window.addEventListener('change',e=>{if($('modal').open&&e.target.closest?.('#modal')&&e.target.type!=='file')markDirty();});
-window.addEventListener('beforeunload',e=>{if(modalDirty||savingProduct||pendingUploads){e.preventDefault();e.returnValue='';}});
+window.addEventListener('beforeunload',e=>{if(modalDirty||savingProduct||savingOrder||pendingUploads){e.preventDefault();e.returnValue='';}});
 $('modal').addEventListener('cancel',e=>{e.preventDefault();closeModal();});
 
 
@@ -125,10 +153,17 @@ html+=`<section class="panel"><h3>本次处理记录</h3><div class="timeline">$
 async function reviewAftersale(approve){const r=currentOrder.refund;const input={approve,note:$('after-review-note').value};if(approve&&r.type==='RETURN_REFUND')input.returnAddress={name:$('return-name').value,phone:$('return-phone').value,detail:$('return-address').value};if(approve&&r.type==='REFUND_ONLY'&&r.previous!=='PAID')input.waiveReturn=$('waive-return').checked;await orderAction('refundReview',input);}
 async function inspectReturn(){await orderAction('returnInspect',{note:$('inspection-note').value,confirm:$('inspection-confirm').checked,items:currentOrder.lines.map((l,i)=>({productId:l.productId,skuId:l.skuId,receivedQty:Number($('received-'+i).value),restockQty:Number($('restock-'+i).value)}))});}
 async function viewOrder(id){const o=await api('order',{id});currentOrder=o;modal(`<span class="muted">订单详情</span><h2>${studio.fulfillmentLabel(o)||states[o.status]}</h2><p class="order-id">${esc(o.id)}</p>${o.lines.map(l=>`<div class="panel order-line"><img src="${esc(art(l))}" alt="商品样例示意图"><div><h3>${esc(l.name)}</h3><p class="muted">${esc(l.spec)} × ${l.qty}</p><b>¥${money(l.price*l.qty)}</b></div></div>`).join('')}${fulfillmentCard(o)}<div class="row"><span>订单合计</span><span class="price">¥${money(o.total)}</span></div><p class="field-caption">${o.fulfillment?.type==='PICKUP'?'自提免配送费':'商家外送费 ¥'+money(o.shippingFee)}${o.status==='PENDING'?' · 未付款订单 15 分钟自动关闭':''}</p><div class="actions">${false?'<button class="primary" onclick="orderAction(\'mockPay\')">模拟付款（不扣款）</button><button onclick="orderAction(\'cancel\')">取消订单</button>':''}${false?'<button onclick="orderAction(\'confirmReceipt\')">确认收货</button>':''}<button onclick="tracking()">查看履约记录</button></div><div id="tracking"></div>${merchantFulfillment(o)}${renderAftersales(o)}`);}
-async function orderAction(action,extra={}){const id=currentOrder.id;await api(action,{id,caseId:currentOrder.refund?.caseId,...extra});modalDirty=false;await show();await viewOrder(id);notifySaved('订单处理成功，状态已更新');}
+async function orderAction(action,extra={}){
+  if(savingOrder)return;const id=currentOrder.id,input={id,caseId:currentOrder.refund?.caseId,...extra};
+  savingOrder=true;
+  const controls=[...document.querySelectorAll('#modal button, #modal input, #modal textarea')].map(node=>({node,disabled:node.disabled}));
+  controls.forEach(({node})=>node.disabled=true);
+  try{await api(action,input);modalDirty=false;await show();await viewOrder(id);notifySaved('订单处理成功，状态已更新');}
+  finally{savingOrder=false;controls.forEach(({node,disabled})=>node.disabled=disabled);}
+}
 async function tracking(){const t=await api('tracking',{id:currentOrder.id});$('tracking').innerHTML=`<div class="panel"><h3>${esc(t.company||'尚未发货')}</h3><p class="muted">${esc(t.number||'')}${t.note?' · '+esc(t.note):''}</p><p class="field-caption">${esc(t.notice)}</p><div class="timeline">${t.events.map(e=>`<p>${esc(e.text)}</p>`).join('')}</div></div>`;}
 async function ship(){await orderAction('ship',{number:$('number').value,note:$('delivery-note').value});}
-function editor(id,template){if(savingProduct)return;editing=id?JSON.parse(JSON.stringify(adminProducts.find(p=>p.id===id))):studio.create(template);originalSkuIds=new Set(editing.skus.map(k=>k.id));renderEditor();}
+function editor(id,template){if(savingProduct)return;editing=id?JSON.parse(JSON.stringify(adminProducts.find(p=>p.id===id))):studio.create(template);if(!editing.id&&!editing.requestKey)editing.requestKey='product-'+Date.now()+'-'+Math.random().toString(36).slice(2);originalSkuIds=new Set(editing.skus.map(k=>k.id));renderEditor();}
 
 function renderEditor(){modal(`<div class="editor-heading"><h2>${editing.id?'编辑商品':'新增商品'}</h2><p class="muted">${editing.id?esc(editing.name):'选择模板后填写商品信息，默认保存为草稿。'}</p></div>${editing.id?'':'<section class="template-section"><h3>从模板开始</h3><p class="field-caption">选择分类，自动带入说明提纲、图片和规格；也可以继续自由填写。</p><div class="template-grid">'+studio.templates.map(t=>`<button type="button" class="${editing.category===t.category?'chosen':''}" onclick="changeTemplate('${t.id}')"><strong>${t.name}</strong><small>${t.hint}</small></button>`).join('')+'</div></section>'}
 <form onsubmit="saveProduct(event)" class="product-editor"><fieldset id="product-fields"><nav class="editor-jump" aria-label="编辑分区"><a href="#edit-info">商品信息</a><a href="#edit-images">图片</a><a href="#edit-skus">规格与库存</a></nav>
@@ -171,7 +206,7 @@ function productPayload(){
 async function saveProduct(e){
   e.preventDefault();if(savingProduct)return;
   if(pendingUploads)throw Error('图片正在上传，请完成后再保存');
-  const payload=productPayload(),button=$('save-product');savingProduct=true;
+  if(!editing.id&&!editing.requestKey)editing.requestKey='product-'+Date.now()+'-'+Math.random().toString(36).slice(2);const payload=productPayload(),button=$('save-product');savingProduct=true;
   $('product-fields').disabled=true;button.disabled=true;button.textContent='正在保存…';
   try{const saved=await api('saveProduct',payload);closeModal(true);await show('products');notifySaved(`已保存「${saved.name}」 · ${saved.skus.length} 个规格 · ${saved.active?'上架中':'草稿'}`);}
   finally{savingProduct=false;$('product-fields').disabled=false;button.disabled=false;button.textContent='保存商品';}
@@ -179,7 +214,7 @@ async function saveProduct(e){
 
 function imageControl(target,src){return `<section class="panel image-control ${target==='product'?'product-image-control':''}"><h3>${target==='product'?'商品图片':'选择图片'}</h3><img id="image-${target}" class="chosen-image" src="${esc(src||'/assets/empty-v2.jpg')}" alt="当前选择的图片"><label class="upload-label">上传自己的图片（JPG / PNG，≤2MB）<input type="file" accept="image/jpeg,image/png" onchange="uploadStudioImage(this,'${target}')"></label><details><summary>从备选图库选择 · ${studio.images(target).length} 张</summary><p class="field-caption">AI 示意图，销售时请确保图片与实物一致。</p><div class="asset-grid">${studio.images(target).map(a=>`<button type="button" onclick="chooseStudioImage('${target}','${a.src}')"><img src="${a.src}" alt="${a.name}"><span>${a.name}</span><small>${a.kind} · AI 示意</small></button>`).join('')}</div></details><p id="image-status-${target}" role="status"></p></section>`;}
 function chooseStudioImage(target,src){if(target==='product'){try{Object.assign(editing,studio.withImage(editing,src));$('product-gallery').innerHTML=productGallery();}catch(e){error(e);return;}}else storeDraft[target]=src;markDirty();$('image-'+target).src=src;$('image-status-'+target).textContent='已选择，保存后生效';}
-async function uploadStudioImage(input,target){const f=input.files[0];if(!f)return;const status=$('image-status-'+target);if(f.size>2*1024*1024||!['image/png','image/jpeg'].includes(f.type)){status.textContent='请选择 2MB 以内的 JPG 或 PNG 图片';input.value='';return;}const draft=target==='product'?editing:storeDraft;status.textContent='正在上传图片…';input.disabled=true;pendingUploads++;try{const base64=await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result.split(',')[1]);r.onerror=()=>reject(Error('图片读取失败'));r.readAsDataURL(f);});const res=await fetch('/upload',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({role,base64})});const data=await res.json();if(!data.ok)throw Error(data.error);if(draft!==(target==='product'?editing:storeDraft)||!$('modal').open)return;chooseStudioImage(target,data.path);}catch(e){status.textContent=e.message;}finally{pendingUploads--;input.disabled=false;}}
+async function uploadStudioImage(input,target){const f=input.files[0];if(!f)return;const status=$('image-status-'+target);if(f.size>2*1024*1024||!['image/png','image/jpeg'].includes(f.type)){status.textContent='请选择 2MB 以内的 JPG 或 PNG 图片';input.value='';return;}const draft=target==='product'?editing:storeDraft;status.textContent='正在上传图片…';input.disabled=true;pendingUploads++;try{const base64=await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result.split(',')[1]);r.onerror=()=>reject(Error('图片读取失败'));r.readAsDataURL(f);});const uploadedPath=await request('/upload',{base64});if(draft!==(target==='product'?editing:storeDraft)||!$('modal').open)return;chooseStudioImage(target,uploadedPath);}catch(e){status.textContent=e.message;}finally{pendingUploads--;input.disabled=false;}}
 
 function productGallery(){return '<p class="field-caption">第一张为封面。可拖动图片排序，也可使用前移、后移按钮。</p><div class="photo-gallery">'+studio.productImages(editing).map((src,i,images)=>`<div class="photo-item" draggable="true" ondragstart="startPhotoDrag(event,${i})" ondragover="event.preventDefault()" ondrop="dropPhoto(event,${i})"><div class="photo-number">${i===0?'封面':'图片 '+(i+1)}</div><img src="${esc(src)}" alt="商品图片 ${i+1}" draggable="false"><div class="photo-actions"><button type="button" ${i===0?'disabled':''} onclick="movePhoto(${i},${i-1})" aria-label="图片 ${i+1} 前移">←</button><button type="button" ${i===images.length-1?'disabled':''} onclick="movePhoto(${i},${i+1})" aria-label="图片 ${i+1} 后移">→</button><button type="button" onclick="removePhoto(${i})" aria-label="移除图片 ${i+1}">移除</button></div></div>`).join('')+'</div>';}
 function refreshPhotos(){$('product-gallery').innerHTML=productGallery();$('image-product').src=editing.image||'/assets/empty-v2.jpg';markDirty();}

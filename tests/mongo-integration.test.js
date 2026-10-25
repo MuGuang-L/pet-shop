@@ -5,6 +5,13 @@ const buyer={id:'test-buyer'},merchant={id:'test-buyer',merchant:true};
 const addr={name:'模拟买家',phone:'13800000000',detail:'虚构省虚构市测试街道 1 号'};
 const enabled=process.env.PET_MONGO_TEST==='1';
 
+test('真实 MongoDB：并发新增商品、地址请求及重连重试只创建一份',{skip:!enabled},async()=>fixture(async(store,database)=>{
+ const product={...require('../cloudfunctions/shop/studio').create(),name:'幂等新增',requestKey:'mongo-create-product'};
+ const created=await Promise.all([store.execute(merchant,'saveProduct',product),store.execute(merchant,'saveProduct',product)]);assert.equal(created[0].id,created[1].id);
+ const input={...addr,requestKey:'mongo-create-address'};const addresses=await Promise.all([store.execute(buyer,'saveAddress',input),store.execute(buyer,'saveAddress',input)]);assert.equal(addresses[0].id,addresses[1].id);
+ const second=await MongoStore.connect({database});try{assert.equal((await second.execute(merchant,'saveProduct',product)).id,created[0].id);assert.equal((await second.execute(merchant,'merchantProducts')).length,4);assert.equal((await second.execute(buyer,'addresses')).length,1);}finally{await second.close();}
+}));
+
 test('真实 MongoDB：旧商品编辑不能覆盖预留库存，并发编辑只有一个版本提交',{skip:!enabled},async()=>fixture(async(store,database)=>{
  const stale=(await store.execute(merchant,'merchantProducts'))[0];
  const o=await store.execute(buyer,'createOrder',{key:'stale-edit-order',fulfillment:'PICKUP',contact:addr,lines:[{productId:'food',skuId:'food-1',qty:1}]});

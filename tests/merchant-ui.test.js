@@ -15,7 +15,7 @@ function fixture(intercept) {
     close() { this.open = false; }, addEventListener(type, callback) { listeners[id+':'+type]=callback; }, querySelector() { return null; }, appendChild() {}
   };
   const context = vm.createContext({
-    Studio, console, document: { getElementById: node, querySelectorAll: () => [], createElement: () => ({ style: {} }) },
+    Studio, console, AbortController, setTimeout, clearTimeout, document: { getElementById: node, querySelectorAll: () => [], createElement: () => ({ style: {} }) },
     window: { addEventListener(type, callback) {listeners[type]=callback;} },
     fetch: async (url, req) => {
       assert.equal(url, '/api');
@@ -247,7 +247,7 @@ test('保存失败保留表单与修改提醒，图片上传中阻止保存',asy
   let fail=true;
   const f=fixture(body=>{if(body.action==='saveProduct'&&fail)throw Error('网络暂时不可用');});
   await f.run("show('products')");f.run("editor('toy')");fillEditor(f,{pname:'保留的名称'});f.run('markDirty()');
-  await assert.rejects(f.run('saveProduct({preventDefault(){}})'),/网络暂时不可用/);
+  await assert.rejects(f.run('saveProduct({preventDefault(){}})'),/未收到确认结果/);
   assert.equal(f.node('modal').open,true);assert.equal(f.node('pname').value,'保留的名称');
   assert.equal(f.node('product-fields').disabled,false);assert.equal(f.run('modalDirty'),true);
   f.run('pendingUploads=1');
@@ -281,6 +281,14 @@ function fillSettings(f){
   for(let i=1;i<=7;i++)f.node('setting-day-'+i).checked=s.hours.days.includes(i);
 }
 
+test('订单操作在网络等待期间拒绝重复点击，响应后解除锁定',async()=>{
+ let release;const gate=new Promise(r=>release=r);const f=fixture(body=>body.action==='ship'?gate:undefined);
+ const a=f.buyer('saveAddress',{name:'模拟',phone:'13800000000',detail:'模拟市 1 号'});
+ const o=f.buyer('createOrder',{key:'double-click-shipping',addressId:a.id,lines:[{productId:'toy',skuId:'toy-1',qty:1}]});f.buyer('mockPay',{id:o.id});await f.run("viewOrder('"+o.id+"')");
+ const first=f.run("orderAction('ship',{note:'店员外送'})");await f.run("orderAction('ship',{note:'店员外送'})");assert.equal(f.calls.filter(c=>c.action==='ship').length,1);assert.equal(f.run('savingOrder'),true);
+ release();await first;assert.equal(f.run('savingOrder'),false);assert.equal(f.buyer('order',{id:o.id}).status,'SHIPPED');
+});
+
 test('订单详情仅在待付款状态提示自动关闭，付款后不再显示',async()=>{
  const f=fixture();const order=f.buyer('createOrder',{key:'payment-caption',fulfillment:'PICKUP',contact:{name:'模拟',phone:'13800000000'},lines:[{productId:'toy',skuId:'toy-1',qty:1}]});
  await f.run("viewOrder('"+order.id+"')");assert.match(f.node('modal').innerHTML,/未付款订单 15 分钟自动关闭/);
@@ -307,7 +315,7 @@ test('经营设置表单校验、失败保留草稿，成功后买家可读相�
   let fail=true;const f=fixture(body=>{if(body.action==='saveShopSettings'&&fail)throw Error('网络暂时不可用');});
   await f.run("show('settings')");assert.match(f.node('app').innerHTML,/门店经营设置/);f.run('editShopSettings()');fillSettings(f);
   f.node('setting-name').value='测试门店';f.node('setting-fee').value='6.50';f.run('markDirty()');
-  await assert.rejects(f.run('saveShopSettings({preventDefault(){}})'),/网络暂时不可用/);
+  await assert.rejects(f.run('saveShopSettings({preventDefault(){}})'),/未收到确认结果/);
   assert.equal(f.node('modal').open,true);assert.equal(f.node('setting-name').value,'测试门店');assert.equal(f.node('settings-fields').disabled,false);
   f.node('setting-fee').value='-1';assert.throws(()=>f.run('settingsPayload()'),/金额须为/);
   f.node('setting-fee').value='6.50';fail=false;await f.run('saveShopSettings({preventDefault(){}})');
