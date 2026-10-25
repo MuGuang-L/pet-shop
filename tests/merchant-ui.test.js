@@ -280,6 +280,15 @@ function fillSettings(f){
   for(const [id,value] of Object.entries({accept:s.acceptingOrders,allday:s.hours.allDay,enforce:s.hours.enforce,pickup:s.pickup.enabled,delivery:s.delivery.enabled}))f.node('setting-'+id).checked=value;
   for(let i=1;i<=7;i++)f.node('setting-day-'+i).checked=s.hours.days.includes(i);
 }
+
+test('商家旧编辑页遭遇下单后保存，提示冲突并保留草稿，库存不回升',async()=>{
+ const f=fixture();await f.run("show('products')");f.run("editor('food')");fillEditor(f,{pname:'保留的编辑名称'});
+ f.buyer('createOrder',{key:'editing-inventory',fulfillment:'PICKUP',contact:{name:'模拟',phone:'13800000000'},lines:[{productId:'food',skuId:'food-1',qty:1}]});
+ await assert.rejects(f.run('saveProduct({preventDefault(){}})'),/商品或库存已变化/);
+ assert.equal(f.node('pname').value,'保留的编辑名称');assert.equal(f.node('modal').open,true);
+ assert.equal(f.node('save-product').disabled,false);assert.equal(f.state().products[0].skus[0].stock,19);
+ assert.equal(f.calls.filter(c=>c.action==='saveProduct').at(-1).input.revision,0);
+});
 test('经营设置表单校验、失败保留草稿，成功后买家可读相同费用与地址',async()=>{
   let fail=true;const f=fixture(body=>{if(body.action==='saveShopSettings'&&fail)throw Error('网络暂时不可用');});
   await f.run("show('settings')");assert.match(f.node('app').innerHTML,/门店经营设置/);f.run('editShopSettings()');fillSettings(f);

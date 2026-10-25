@@ -6,6 +6,7 @@
     "products": [
       {
         "id": "food",
+        "revision": 0,
         "name": "样例 · 鲜肉猫粮",
         "category": "主粮",
         "description": "虚构样例商品，用于流程验收。正式销售前填写配料、适用年龄、保质期及生产信息。",
@@ -28,6 +29,7 @@
       },
       {
         "id": "toy",
+        "revision": 0,
         "name": "样例 · 绳结玩具",
         "category": "玩具",
         "description": "虚构样例。适用于互动玩耍，规格与材质仅用于演示。",
@@ -44,6 +46,7 @@
       },
       {
         "id": "care",
+        "revision": 0,
         "name": "样例 · 宠物梳",
         "category": "清洁",
         "description": "虚构样例。正式商品请填写材质、尺寸和使用注意事项。",

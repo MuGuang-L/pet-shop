@@ -4,6 +4,19 @@ const {MongoStore}=require('../server/mongo-store');
 const buyer={id:'test-buyer'},merchant={id:'test-buyer',merchant:true};
 const addr={name:'模拟买家',phone:'13800000000',detail:'虚构省虚构市测试街道 1 号'};
 const enabled=process.env.PET_MONGO_TEST==='1';
+
+test('真实 MongoDB：旧商品编辑不能覆盖预留库存，并发编辑只有一个版本提交',{skip:!enabled},async()=>fixture(async(store,database)=>{
+ const stale=(await store.execute(merchant,'merchantProducts'))[0];
+ const o=await store.execute(buyer,'createOrder',{key:'stale-edit-order',fulfillment:'PICKUP',contact:addr,lines:[{productId:'food',skuId:'food-1',qty:1}]});
+ await assert.rejects(store.execute(merchant,'saveProduct',{...stale,name:'旧页修改'}),/PRODUCT_REVISION_CONFLICT/);
+ assert.equal((await store.execute(buyer,'catalog'))[0].skus[0].stock,19);
+ const second=await MongoStore.connect({database});try{
+  const current=(await second.execute(merchant,'merchantProducts'))[0];
+  const results=await Promise.allSettled([store.execute(merchant,'saveProduct',{...current,name:'甲'}),second.execute(merchant,'saveProduct',{...current,name:'乙'})]);
+  assert.equal(results.filter(r=>r.status==='fulfilled').length,1);assert.match(results.find(r=>r.status==='rejected').reason.message,/PRODUCT_REVISION_CONFLICT/);
+  await second.execute(buyer,'cancel',{id:o.id});assert.equal((await store.execute(buyer,'catalog'))[0].skus[0].stock,20);
+ }finally{await second.close();}
+}));
 async function fixture(fn){const database='pet_shop_test_'+Date.now()+'_'+Math.random().toString(36).slice(2);const store=await MongoStore.connect({database});try{await fn(store,database);}finally{assert.ok(database.startsWith('pet_shop_test_'));await store.db.dropDatabase();await store.close();}}
 test('真实 MongoDB：重连保留商品、首页配置、订单与幂等键', {skip:!enabled},async()=>fixture(async(store,database)=>{const a=await store.execute(buyer,'saveAddress',addr);const input={key:'persistent-order-1',addressId:a.id,lines:[{productId:'food',skuId:'food-1',qty:2}]};const o=await store.execute(buyer,'createOrder',input);await store.execute(merchant,'saveHomeContent',{headline:'数据库持久化验收'});const second=await MongoStore.connect({database});try{assert.equal((await second.execute(buyer,'homeContent')).headline,'数据库持久化验收');assert.equal((await second.execute(buyer,'createOrder',input)).id,o.id);assert.equal((await second.execute(buyer,'catalog'))[0].skus[0].stock,18);assert.equal(await second.db.collection('orders').countDocuments(),1);await assert.rejects(second.execute({id:'other'},'order',{id:o.id}),/FORBIDDEN/);}finally{await second.close();}}));
 test('真实 MongoDB：并发抢最后一件、重复下单、事务失败无部分扣库',{skip:!enabled},async()=>fixture(async store=>{const p=(await store.execute(merchant,'merchantProducts'))[0];p.skus[0].stock=1;await store.execute(merchant,'saveProduct',p);const a=await store.execute(buyer,'saveAddress',addr);const input=key=>({key,addressId:a.id,lines:[{productId:'food',skuId:'food-1',qty:1}]});const results=await Promise.allSettled(Array.from({length:6},(_,i)=>store.execute(buyer,'createOrder',input('concurrent-'+i))));assert.equal(results.filter(x=>x.status==='fulfilled').length,1);assert.ok(results.filter(x=>x.status==='rejected').every(x=>x.reason.message==='OUT_OF_STOCK'));const before=await store.snapshot();await assert.rejects(store.execute(buyer,'createOrder',{key:'atomic-failure',addressId:a.id,lines:[{productId:'toy',skuId:'toy-1',qty:1},{productId:'food',skuId:'food-1',qty:1}]}),/OUT_OF_STOCK/);assert.deepEqual(await store.snapshot(),before);await store.execute(merchant,'cancel',{id:results.find(x=>x.status==='fulfilled').value.id});const same=await Promise.all(Array.from({length:5},()=>store.execute(buyer,'createOrder',input('same-request-key'))));assert.equal(new Set(same.map(o=>o.id)).size,1);assert.equal((await store.execute(buyer,'catalog'))[0].skus[0].stock,0);}));

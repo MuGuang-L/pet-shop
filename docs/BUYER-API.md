@@ -62,6 +62,20 @@
 
 经营设置字段、快照与兼容说明见 [门店经营设置](SHOP-SETTINGS.md)。新增接口不会要求旧请求增加必填字段；实际费用和开放方式由服务端决定。小程序侧应接入动态读取后再调整门店经营规则，避免继续显示写死的地址和费用。
 
+### 中断恢复与重复提交
+
+2026-10-25 增加跨页面重启的下单恢复。`createOrder` 的 URL、参数和返回结构不变。
+
+- 在发送请求前，把完整 input 和 key 写入本地存储，按 API 根地址与账号 ID 隔离；不能只保存在 Page 实例中。
+- 超时、断网、401、非业务响应、5xx 都保留原请求。同一账号重新登录或重新打开页面时，用原 key 和原 input 找回订单；不能重新生成 key。
+- 服务端在检查最新库存和经营设置前查找已提交的 key，因此订单已创建但响应丢失时，重试返回原订单。订单可能已过期或状态已变化，应展示服务端返回的状态。
+- 只有确定的业务拒绝才清除待确认记录。数据库故障返回 503、`retryable:true` 和 `DATABASE_TEMPORARILY_UNAVAILABLE`，不得当作确定下单失败。
+- 收到成功响应后先持久化完成记录，再更新购物车，最后清除待确认记录；本地写入中断后可继续完成，避免重复清空或重复扣减购物车。
+
+参考实现为 `services/checkout.js`、`services/api.js` 和 `pages/shop/index.js`。同步时保留小程序侧已有界面修改，只合并下单恢复逻辑。未同步的旧客户端仍能联调，但关闭页面后的自动恢复能力不会由服务端升级自动获得。卸载或手动清空本地存储后，应先查询订单，再决定是否重新下单。
+
+服务侧商品编辑增加 `revision`：`merchantProducts` 返回版本号，`saveProduct` 更新已有商品时必须原样提交；版本过期或缺失返回 `PRODUCT_REVISION_CONFLICT`。此要求仅针对商家修改商品，不增加买家下单必填字段。
+
 ### 订单和状态
 
 订单主要字段：`id,userId,lines,address,subtotal,shippingFee,total,status,fulfillment,shipping,refund,refundHistory,createdAt,updatedAt,expiresAt`。

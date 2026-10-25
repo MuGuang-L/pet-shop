@@ -8,7 +8,8 @@ function createServer(store,{auth=new Auth(),publicOrigin=process.env.PUBLIC_ORI
  if(origin&&!allowed.includes(origin))return send(403,{ok:false,error:'ORIGIN_NOT_ALLOWED'});
  if(origin){res.setHeader('Access-Control-Allow-Origin',origin);res.setHeader('Access-Control-Allow-Credentials','true');res.setHeader('Vary','Origin');}
  if(req.method==='OPTIONS'){res.setHeader('Access-Control-Allow-Headers','Content-Type, Authorization');res.setHeader('Access-Control-Allow-Methods','GET, POST, OPTIONS');res.writeHead(204);return res.end();}
- const url=new URL(req.url,'http://localhost').pathname;
+ let url;
+ try{url=new URL(req.url,'http://localhost').pathname;}catch{return send(400,{ok:false,error:'INVALID_REQUEST_URL'});}
  const file=(target,type)=>{res.setHeader('Content-Type',type);res.end(fs.readFileSync(target));};
  try{
  if(req.method==='GET'){
@@ -30,7 +31,7 @@ function createServer(store,{auth=new Auth(),publicOrigin=process.env.PUBLIC_ORI
  if(!req.headers.authorization&&(!origin||!allowed.includes(origin)))return send(403,{ok:false,error:'ORIGIN_REQUIRED'});
  if(url==='/upload'){if(!actor.merchant)throw Error('FORBIDDEN');return send(200,{ok:true,path:uploads.save({...body,role:'merchant'})});}
  authorize(actor,body.action);const data=await store.execute(actor,body.action,body.input||{},{mock:true});return send(200,{ok:true,data});
- }catch(e){const status=e.message==='AUTH_REQUIRED'?401:e.message==='FORBIDDEN'?403:e.message==='LOGIN_RATE_LIMIT'?429:e.message==='BODY_TOO_LARGE'?413:400;send(status,{ok:false,error:e.message});}
+ }catch(e){const retryable=/^Mongo/.test(e.name);const status=retryable?503:e.message==='AUTH_REQUIRED'?401:e.message==='FORBIDDEN'?403:e.message==='LOGIN_RATE_LIMIT'?429:e.message==='BODY_TOO_LARGE'?413:400;send(status,{ok:false,error:retryable?'DATABASE_TEMPORARILY_UNAVAILABLE':e.message,...(retryable?{retryable:true}:{})});}
  });
 }
 module.exports={createServer};
