@@ -15,7 +15,7 @@ function createServer(store,{auth=new Auth(),publicOrigin=process.env.PUBLIC_ORI
  if(url==='/health'){await store.db.command({ping:1});return send(200,{ok:true,mode:'simulation',database:'mongodb'});}
  if(url==='/'){res.writeHead(302,{Location:'/admin/'});return res.end();}
  if(url==='/admin/'||url==='/admin')return file(path.join(root,'apps/merchant-web/index.html'),'text/html; charset=utf-8');
- if(['/admin/app.js','/admin/app.css','/admin/base.css'].includes(url))return file(path.join(root,'apps/merchant-web',path.basename(url)),url.endsWith('.css')?'text/css; charset=utf-8':'text/javascript; charset=utf-8');
+ if(['/admin/settings.js','/admin/app.js','/admin/app.css','/admin/base.css'].includes(url))return file(path.join(root,'apps/merchant-web',path.basename(url)),url.endsWith('.css')?'text/css; charset=utf-8':'text/javascript; charset=utf-8');
  if(url==='/studio.js')return file(path.join(root,'cloudfunctions/shop/studio.js'),'text/javascript; charset=utf-8');
  if(/^\/assets\/[a-z0-9-]+\.(png|jpg)$/.test(url)){const p=path.join(root,'miniprogram',url);if(fs.existsSync(p))return file(p,url.endsWith('png')?'image/png':'image/jpeg');}
  if(/^\/uploads\/[a-f0-9-]+\.(png|jpg)$/.test(url)){const p=path.join(uploads.directory,path.basename(url));if(fs.existsSync(p))return file(p,url.endsWith('png')?'image/png':'image/jpeg');}

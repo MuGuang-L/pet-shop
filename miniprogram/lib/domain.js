@@ -1,6 +1,7 @@
 'use strict';
 const studio = require('./studio');
 const aftersales = require('./aftersales');
+const shopSettings = require('./shop-settings');
 function validImage(image,mock){const bundled=studio.assets.some(a=>a.src===image);need(image.length<=1024&&(!image||bundled||/^(cloud:\/\/|wxfile:\/\/|http:\/\/(tmp|usr|store)\/|\/uploads\/[a-f0-9-]+\.(png|jpg)$)/.test(image)),'IMAGE_PATH');need(mock===true||!image||bundled||image.startsWith('cloud://'),'CLOUD_IMAGE_REQUIRED');return image;}
 const clone = x => JSON.parse(JSON.stringify(x));
 const fail = (code) => { throw new Error(code); };
@@ -44,6 +45,9 @@ function execute(state,actor,action,input={},options={}) {
   if(aftersales.actions.has(action)){const result=aftersales.handle(s,actor,action,input,{...options,now},{release,address});return {state:s,result:clone(result)};}
   let result;
   switch(action) {
+    case 'shopSettings': result=shopSettings.publicSettings(s,now);break;
+    case 'saveShopSettings': merchant();result=shopSettings.save(s,input,now);break;
+    case 'quoteOrder': result=shopSettings.quote(s,input,now);break;
     case 'storefront': result={...studio.defaults,...s.storefront};break;
     case 'saveStorefront': {merchant(); const next={...studio.defaults,...s.storefront};for(const slot of studio.slots){if(input[slot.key]!==undefined)next[slot.key]=validImage(String(input[slot.key]),options.mock)||studio.defaults[slot.key];}s.storefront=next;result=next;break;}
     case 'homeContent': result={...studio.homeDefaults,...s.homeContent};break;
@@ -60,11 +64,12 @@ function execute(state,actor,action,input={},options={}) {
       const type=input.fulfillment||'DELIVERY';need(['PICKUP','DELIVERY'].includes(type),'请选择自提或商家外送');const fingerprint=type==='PICKUP'?JSON.stringify({lines:normalized,type,contact:input.contact}):JSON.stringify({lines:normalized,addressId:input.addressId});
       const key=JSON.stringify([actor.id,input.key]);
       if(s.keys[key]) {need(s.keys[key].fingerprint===fingerprint,'IDEMPOTENCY_CONFLICT');result=s.orders.find(o=>o.id===s.keys[key].id);break;}
-      const a=type==='PICKUP'?address({...input.contact,detail:studio.pickupStore.detail}):(s.addresses[actor.id]||[]).find(a=>a.id===input.addressId);need(a,'ADDRESS_REQUIRED');
+      const quote=shopSettings.quote(s,input,now);
+      const a=type==='PICKUP'?address({...input.contact,detail:quote.pickupStore.detail}):(s.addresses[actor.id]||[]).find(a=>a.id===input.addressId);need(a,'ADDRESS_REQUIRED');
       const lines=[]; let subtotal=0; const seen=new Set();
       for(const l of normalized) {need(Number.isSafeInteger(l.qty)&&l.qty>0&&l.qty<=99,'INVALID_QUANTITY');need(!seen.has(l.productId+'|'+l.skuId),'DUPLICATE_SKU');seen.add(l.productId+'|'+l.skuId);const p=s.products.find(p=>p.id===l.productId&&p.active);need(p,'PRODUCT_UNAVAILABLE');const k=p.skus.find(k=>k.id===l.skuId);need(k,'SKU_NOT_FOUND');need(k.stock>=l.qty,'OUT_OF_STOCK');k.stock-=l.qty;subtotal+=k.price*l.qty;lines.push({...l,name:p.name,spec:k.name,price:k.price,image:p.image});}
       need(Number.isSafeInteger(subtotal)&&subtotal<=100000000,'AMOUNT_LIMIT');need(s.orders.length<500,'DEV_CAPACITY_LIMIT');
-      const shippingFee=type==='PICKUP'?0:s.shippingFee;const fulfillment={type};if(type==='PICKUP'){fulfillment.store=clone(studio.pickupStore);let code;do{code=String(Math.floor(100000+Math.random()*900000));}while(s.orders.some(o=>o.fulfillment?.code===code));fulfillment.code=code;}
+      const shippingFee=quote.shippingFee;const fulfillment={type,settingsRevision:quote.settingsRevision,instructions:quote.instructions};if(type==='DELIVERY')fulfillment.delivery=quote.delivery;if(type==='PICKUP'){fulfillment.store=clone(quote.pickupStore);let code;do{code=String(Math.floor(100000+Math.random()*900000));}while(s.orders.some(o=>o.fulfillment?.code===code));fulfillment.code=code;}
       result={fulfillment,id:'o'+(++s.sequence),userId:actor.id,lines,address:clone(a),subtotal,shippingFee,total:subtotal+shippingFee,status:'PENDING',createdAt:now,updatedAt:now,expiresAt:now+15*60*1000,released:false,refund:null,shipping:null};
       s.orders.push(result);s.keys[key]={fingerprint,id:result.id};break;
     }

@@ -32,6 +32,8 @@
 | storefront | {} | hero/cat/dog/empty/avatar 等图片槽位 |
 | homeContent | {} | headline/subtitle/featuredTitle/featuredIntro/newTitle/scenes |
 | identity | {} | 当前用户身份 |
+| shopSettings | {} | 门店信息、营业时间、自提与外送开关和费用、版本号 |
+| quoteOrder | {fulfillment,lines} | 服务端报价、settingsRevision、pickupStore；不创建订单、不占库存 |
 | addresses | {} | 当前买家地址数组 |
 | saveAddress | {id?,name,phone,detail} | 新地址或修改结果；11 位手机号，详细地址 5～200 字 |
 | deleteAddress | {id} | true |
@@ -56,7 +58,9 @@
 
 自提不用 addressId，改传：`"fulfillment":"PICKUP","contact":{"name":"模拟提货人","phone":"13800000000"}`。
 
-服务端计算价格与配送费，勿传可信金额。自提免配送费；外送当前演示费 800 分。`key` 仅限字母、数字、横线、下划线，示例中文说明不能直接当 key。
+服务端计算价格与配送费，勿传可信金额。自提免配送费；外送默认演示费 800 分，实际规则读取 `shopSettings`，提交前使用 `quoteOrder` 核对。`createOrder` 可附加报价中的 `settingsRevision` 与 `expectedTotal`，发生变化时拒绝创建并提示刷新。`key` 仅限字母、数字、横线、下划线，示例中文说明不能直接当 key。
+
+经营设置字段、快照与兼容说明见 [门店经营设置](SHOP-SETTINGS.md)。新增接口不会要求旧请求增加必填字段；实际费用和开放方式由服务端决定。小程序侧应接入动态读取后再调整门店经营规则，避免继续显示写死的地址和费用。
 
 ### 订单和状态
 

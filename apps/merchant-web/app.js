@@ -17,7 +17,7 @@ async function show(next=tab){
   tab=next;const revision=++viewRevision;
   $('error').style.display='none';$('notice').hidden=true;
   document.querySelectorAll('[data-section]').forEach(n=>{n.classList.toggle('active',n.dataset.section===tab);n.setAttribute('aria-current',n.dataset.section===tab?'page':'false');});
-  const titles={orders:['订单','处理备货、自提、外送及售后。'],products:['商品','管理商品信息、规格与可售库存。'],store:['店铺页面','管理小程序首页图片与内容。']};
+  const titles={settings:['经营设置','设置门店信息、营业时间、自提与外送。'],orders:['订单','处理备货、自提、外送及售后。'],products:['商品','管理商品信息、规格与可售库存。'],store:['店铺页面','管理小程序首页图片与内容。']};
   $('section-title').textContent=titles[tab][0];$('section-note').textContent=titles[tab][1];
   $('app').setAttribute('aria-busy','true');
   $('app').innerHTML='<div class="loading-state" role="status"><span class="loading-dot"></span>正在读取店铺数据…</div>';
@@ -25,7 +25,7 @@ async function show(next=tab){
     const [visuals,content,data,orders]=await Promise.all([
       tab==='store'?api('storefront'):Promise.resolve(storefront),
       tab==='store'?api('homeContent'):Promise.resolve(homeContent),
-      tab==='orders'&&orderQueue==='all'?api('merchantOrdersPage',{q:orderSearch,status:orderStatus,page:orderPageNumber,fulfillment:fulfillmentFilter}):tab==='products'?api('merchantProducts'):Promise.resolve(null),
+      tab==='orders'&&orderQueue==='all'?api('merchantOrdersPage',{q:orderSearch,status:orderStatus,page:orderPageNumber,fulfillment:fulfillmentFilter}):tab==='products'?api('merchantProducts'):tab==='settings'?api('shopSettings'):Promise.resolve(null),
       tab==='orders'?api('merchantOrders'):Promise.resolve([])
     ]);
     if(revision!==viewRevision)return;
@@ -33,6 +33,7 @@ async function show(next=tab){
     if(tab==='orders')$('app').innerHTML=orderTasks(orders)+orderPageHtml(orderQueue==='all'?data:taskOrderPage(orders,orderQueue,{q:orderSearch,status:orderStatus,page:orderPageNumber,fulfillment:fulfillmentFilter}));
     if(tab==='products'){adminProducts=data;$('app').innerHTML=productsPage();renderProductResults();}
     if(tab==='store')$('app').innerHTML=storePage();
+    if(tab==='settings')$('app').innerHTML=settingsPage(data);
   }catch(e){if(revision!==viewRevision)return;error(e);$('app').innerHTML='<div class="empty-state"><span class="service-icon">'+lineIcon('box')+'</span><h3>暂时没能读取数据</h3><p>请检查网络连接后重试，未提交的经营数据不会被修改。</p><button onclick="show()">重新加载</button></div>';}
   finally{if(revision===viewRevision)$('app').setAttribute('aria-busy','false');}
 }

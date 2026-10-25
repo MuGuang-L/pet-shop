@@ -4,3 +4,13 @@ test('拆分 HTTP：登录、角色伪造拒绝、买家上传拒绝、商家可
 test('拆分 HTTP：买家订单隔离，原始 role 参数和越权订单号无效',async()=>fixture(async({post})=>{const login=async(username)=>(await post('/auth/login',{username,password:'buyer-test-password'})).body.data.token;const alice=await login('alice'),bob=await login('bob');const o=(await post('/api',{action:'createOrder',input:{key:'split-http-test',fulfillment:'PICKUP',contact:{name:'模拟',phone:'13800000000'},lines:[{productId:'toy',skuId:'toy-1',qty:1}]}},alice)).body.data;assert.equal((await post('/api',{action:'order',input:{id:o.id},role:'merchant'},bob)).status,403);assert.equal((await post('/api',{action:'ordersPage'},bob)).body.data.total,0);}));
 test('拆分 HTTP：外站 Origin 拒绝、Cookie 写入须验证 Origin、无公开旧预览',async()=>fixture(async({post,base})=>{const l=await post('/auth/login',{username:'owner',password:'owner-test-password'});assert.equal((await post('/api',{action:'merchantOrders'},l.body.data.token,{Origin:'https://evil.example'})).status,403);const cookie=l.headers.get('set-cookie').split(';')[0];assert.equal((await post('/api',{action:'merchantOrders'},null,{Cookie:cookie})).status,403);assert.equal((await fetch(base+'/ui.js')).status,404);assert.equal((await fetch(base+'/admin/')).status,200);}));
 test('会话过期和登录错误频率限制',()=>{const auth=new Auth([createAccount('alice','buyer-test-password','buyer','alice')]);const out=auth.login('alice','buyer-test-password');auth.sessions.get(out.token).expiresAt=0;assert.throws(()=>auth.identity({headers:{authorization:'Bearer '+out.token}}),/AUTH_REQUIRED/);for(let i=0;i<10;i++)assert.throws(()=>auth.login('alice','wrong'),/INVALID_CREDENTIALS/);assert.throws(()=>auth.login('alice','wrong'),/LOGIN_RATE_LIMIT/);});
+test('经营设置 HTTP：买家可读和报价、不能保存，商家版本写入生效',async()=>fixture(async({post,base})=>{
+  const b=(await post('/auth/login',{username:'alice',password:'buyer-test-password'})).body.data.token;
+  const m=(await post('/auth/login',{username:'owner',password:'owner-test-password'})).body.data.token;
+  const settings=(await post('/api',{action:'shopSettings'},b)).body.data;
+  assert.equal((await post('/api',{action:'saveShopSettings',input:settings},b)).status,403);
+  settings.delivery.fee=500;
+  assert.equal((await post('/api',{action:'saveShopSettings',input:settings},m)).body.data.revision,1);
+  assert.equal((await post('/api',{action:'quoteOrder',input:{lines:[{productId:'toy',skuId:'toy-1',qty:1}]}},b)).body.data.total,2400);
+  assert.equal((await fetch(base+'/admin/settings.js')).status,200);
+}));

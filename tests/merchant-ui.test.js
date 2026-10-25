@@ -34,6 +34,7 @@ function fixture(intercept) {
     }
   });
   vm.runInContext(source, context);
+  vm.runInContext(fs.readFileSync(require.resolve('../apps/merchant-web/settings.js'),'utf8'),context);
   return { run: code => vm.runInContext(code, context), node, calls, state: () => state,
     event: (name,e={}) => listeners[name]?.(e),
     buyer: (action,input) => {const result=domain.execute(state,{id:'buyer-test',merchant:false},action,input,{mock:true});state=result.state;return result.result;}
@@ -272,4 +273,20 @@ test('商家保存多规格商品后买家可选规格下单，商家外送后�
   f.buyer('confirmReceipt',{id:order.id});
   assert.equal(f.buyer('order',{id:order.id}).status,'COMPLETED');
   assert.equal(f.buyer('catalog',{}).find(p=>p.id===product.id).skus[1].stock,6);
+});
+function fillSettings(f){
+  const s=f.run('shopConfig');
+  for(const [id,value] of Object.entries({name:s.store.name,detail:s.store.detail,phone:s.store.phone,open:s.hours.open,close:s.hours.close,'pickup-note':s.pickup.instructions,fee:(s.delivery.fee/100).toFixed(2),minimum:'0.00',free:'',estimate:String(s.delivery.estimateMinutes),area:s.delivery.area,'delivery-note':s.delivery.instructions}))f.node('setting-'+id).value=value;
+  for(const [id,value] of Object.entries({accept:s.acceptingOrders,allday:s.hours.allDay,enforce:s.hours.enforce,pickup:s.pickup.enabled,delivery:s.delivery.enabled}))f.node('setting-'+id).checked=value;
+  for(let i=1;i<=7;i++)f.node('setting-day-'+i).checked=s.hours.days.includes(i);
+}
+test('经营设置表单校验、失败保留草稿，成功后买家可读相同费用与地址',async()=>{
+  let fail=true;const f=fixture(body=>{if(body.action==='saveShopSettings'&&fail)throw Error('网络暂时不可用');});
+  await f.run("show('settings')");assert.match(f.node('app').innerHTML,/门店经营设置/);f.run('editShopSettings()');fillSettings(f);
+  f.node('setting-name').value='测试门店';f.node('setting-fee').value='6.50';f.run('markDirty()');
+  await assert.rejects(f.run('saveShopSettings({preventDefault(){}})'),/网络暂时不可用/);
+  assert.equal(f.node('modal').open,true);assert.equal(f.node('setting-name').value,'测试门店');assert.equal(f.node('settings-fields').disabled,false);
+  f.node('setting-fee').value='-1';assert.throws(()=>f.run('settingsPayload()'),/金额须为/);
+  f.node('setting-fee').value='6.50';fail=false;await f.run('saveShopSettings({preventDefault(){}})');
+  assert.equal(f.node('modal').open,false);assert.match(f.node('notice').textContent,/经营设置已保存/);assert.equal(f.buyer('shopSettings',{}).delivery.fee,650);assert.equal(f.buyer('shopSettings',{}).store.name,'测试门店');
 });

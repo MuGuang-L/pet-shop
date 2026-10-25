@@ -201,3 +201,25 @@ button,input,select,textarea{border-radius:6px}
 #discard-dialog p{font-size:13px;color:#66765e;line-height:1.8}
 #discard-dialog::backdrop{background:#263a2959}
 .discard-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:24px}
+.settings-overview .panel-heading p{margin:8px 0 0;font-size:12px;color:#78836f}
+.settings-status{display:flex;align-items:center;gap:14px;padding:0 22px 18px;font-size:11px;color:#7a856f;flex-wrap:wrap}
+.settings-status button{margin-left:auto;font-size:12px}
+.settings-grid{display:grid;grid-template-columns:1fr 1fr;border-top:1px solid #e2e8db}
+.settings-grid article{padding:25px 22px;border-bottom:1px solid #e2e8db;min-width:0}
+.settings-grid article:nth-child(odd){border-right:1px solid #e2e8db}
+.settings-grid article:nth-last-child(-n+2){border-bottom:0}
+.settings-grid h3{font-size:13px;margin:0 0 18px;color:#7a856f;font-weight:500;display:flex;align-items:center;gap:12px}
+.settings-grid strong{font-size:15px;font-weight:600;line-height:1.7}
+.settings-grid p{color:#64735d;font-size:12px;line-height:1.9;margin:9px 0 0;white-space:pre-wrap;overflow-wrap:anywhere}
+.settings-editor fieldset{border:0;padding:0;margin:0;min-width:0}
+.settings-editor .editor-section{border-top:1px solid #e0e7d8;padding:20px 0}
+.settings-editor .editor-section>h3{font-size:16px;margin:0 0 20px}
+.settings-editor input,.settings-editor textarea{padding:10px 12px;margin:8px 0 18px;font-size:13px}
+.settings-editor textarea{min-height:90px}.settings-editor label{font-size:12px}
+.settings-editor .settings-switch{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px;background:#f0f4e9;border-radius:6px;margin-bottom:18px}
+.settings-switch strong,.settings-switch small{display:block}.settings-switch strong{font-size:13px;font-weight:500}.settings-switch small{font-size:11px;color:#77856b;margin-top:7px;line-height:1.6}
+.settings-editor input[type=checkbox]{margin:0;min-height:18px;width:18px;height:18px;flex-shrink:0;accent-color:#284b3c}
+.settings-editor .weekday-field{margin:20px 0}.weekday-field legend{font-size:12px;color:#68795f;margin-bottom:12px}
+.weekday-list{display:flex;gap:12px;flex-wrap:wrap}.weekday-list label{display:flex;align-items:center;gap:6px}
+@media(max-width:760px){.settings-grid{grid-template-columns:1fr}.settings-grid article:nth-child(odd){border-right:0}.settings-grid article:nth-last-child(2){border-bottom:1px solid #e2e8db}.settings-status{padding-inline:16px}.settings-grid article{padding:20px 16px}.admin-sidebar nav{flex-wrap:wrap}.settings-editor .two-fields{grid-template-columns:1fr 1fr}.settings-editor .editor-footer small{max-width:90px}}
+@media(max-width:760px){.admin-sidebar nav{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px}.admin-sidebar nav button{width:auto;min-width:0;padding:10px 5px;font-size:12px;white-space:nowrap}}
