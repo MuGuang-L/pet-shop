@@ -7,7 +7,7 @@ const readActions=new Set(['catalog','storefront','homeContent','identity','addr
 function requestOnce(endpoint,data,apiBase,token){
  return new Promise((resolve,reject)=>wx.request({url:apiBase+endpoint,method:'POST',data,header:{'Content-Type':'application/json',...(token?{Authorization:'Bearer '+token}:{})},timeout:15000,
  success:r=>{
-  if(r.statusCode===401){if(session()?.token===token)wx.removeStorageSync(key);return reject(Object.assign(Error('AUTH_REQUIRED'),{definitive:false}));}
+  if(r.statusCode===401){if(session()?.token===token)wx.removeStorageSync(key);return reject(Object.assign(Error('AUTH_REQUIRED'),{code:'AUTH_REQUIRED',definitive:false}));}
   if([408,429,500,502,503,504].includes(r.statusCode)||!r.data||typeof r.data.ok!=='boolean')return reject(Object.assign(Error('服务暂时不可用，请稍后重试'),{retryable:true,definitive:false}));
   if(r.statusCode!==200||!r.data.ok){const error=Error(r.data.error==='CREATE_REQUEST_CONFLICT'?'上次地址可能已保存，请先关闭编辑并刷新地址列表核对。':r.data.error||'服务请求失败');error.definitive=r.statusCode===400&&r.data.retryable!==true;return reject(error);}
   if(!Object.prototype.hasOwnProperty.call(r.data,'data'))return reject(Object.assign(Error('服务响应不完整，请稍后重试'),{retryable:true,definitive:false}));
@@ -28,4 +28,5 @@ async function login(username,password){const out=await request('/auth/login',{u
 async function logout(){try{await request('/auth/logout',{});}finally{wx.removeStorageSync(key);wx.removeStorageSync('pet-cart');}}
 async function call(action,input={}){return paths(await request('/api',{action,input}));}
 function checkoutScope(){const identity=session()?.id;if(!identity)throw Error('AUTH_REQUIRED');return 'pet-checkout-v1:'+JSON.stringify([base(),identity]);}
-module.exports={call,login,logout,checkoutScope,hasSession:()=>!!session()?.token,mode:'api'};
+function getSupport(settings){const source=config.buyerSupport||{};const configured=settings&&settings.revision>0;const phone=String(configured?settings.store.phone:source.phone||'').trim();return {name:'联系商家',phone:/^(?:1\d{10}|0\d{2,3}-?\d{7,8}|400-?\d{3}-?\d{4})$/.test(phone)?phone:'',hours:configured?settings.hoursText:String(source.hours||'')};}
+module.exports={getSupport,call,login,logout,checkoutScope,hasSession:()=>!!session()?.token,mode:'api'};

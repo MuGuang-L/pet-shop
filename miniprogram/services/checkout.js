@@ -16,7 +16,7 @@ async function submit(scope, call, cart) {
       if (error.definitive === true) clear(scope);
       throw error;
     }
-    const remaining = cart.map(line => ({ ...line, qty: line.qty - pending.input.lines
+    const remaining = pending.source === 'quick' ? cart.map(line => ({ ...line })) : cart.map(line => ({ ...line, qty: line.qty - pending.input.lines
       .filter(item => item.productId === line.productId && item.skuId === line.skuId)
       .reduce((sum, item) => sum + item.qty, 0) })).filter(line => line.qty > 0);
     pending = { ...pending, completed: { order, cart: remaining } };

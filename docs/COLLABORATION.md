@@ -1,5 +1,7 @@
 # 联调配置
 
+当前联调分支为 `integration/full-stack`，合并来源、兼容适配与验收步骤见 [三方联调](FULL-STACK-INTEGRATION.md)。
+
 ## 连接关系
 
 小程序侧和服务侧的商家 Web 调用同一个 HTTP API，由服务侧读写 MongoDB。库存、金额、订单状态和权限在服务侧校验。

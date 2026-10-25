@@ -1,1 +1,4 @@
-{"navigationBarTitleText":"爪爪小铺 · 样例自营"}
+{
+  "navigationBarTitleText": "爪爪小铺 · 样例自营",
+  "enablePullDownRefresh": true
+}

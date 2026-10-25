@@ -23,23 +23,26 @@ cd pet-shop
 
 ## 分支与提交
 
-从最新的 `main` 创建功能分支：
+当前分支分工：
+
+- `dev/miniprogram`：小程序侧开发。
+- `dev/service`：服务侧开发，包含商家 Web、接口与数据库代码。
+- `integration/full-stack`：合并两侧变更、处理兼容问题及三方验收。
+- `main`：验收后再合入，当前不直接推送。
+
+本地查看联调版本：
 
 ```sh
-git switch main
+git fetch origin
+git switch --track origin/integration/full-stack
 git pull --ff-only
-git switch -c feature/mini-address
 ```
 
-修改后检查 `git diff`，仅暂存本次相关文件：
+已经有该本地分支时使用 `git switch integration/full-stack`。切换前先保存当前分支的工作；不要使用强制覆盖或重置解决未提交改动。
 
-```sh
-git add miniprogram/
-git commit -m "Improve address form"
-git push -u origin feature/mini-address
-```
+两侧日常仍在各自开发分支提交。需要联调时，向 `integration/full-stack` 发起 Pull Request，说明接口和字段影响。修复在联调分支完成后，应选择性同步回对应开发分支，避免下次合并重复修复。联调通过后再向 `main` 提交验收版本。
 
-在 GitHub 创建 Pull Request，目标分支为 `main`。说明功能变化、验证结果和接口影响，审阅后合并。界面截图只保留应用内容，不包含桌面、机器路径或账号信息。不要强制推送共享分支。
+联调分支包含两侧完整代码；Git 不包含正在运行的数据库和账号，切换分支不会迁移或重建数据库。详细步骤及验收记录见 [三方联调](docs/FULL-STACK-INTEGRATION.md)。界面截图只保留应用内容，不包含桌面、机器路径或账号信息。不要强制推送共享分支。
 
 ## 检查
 

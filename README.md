@@ -82,6 +82,7 @@ npm.cmd test
 
 - [开发协作](CONTRIBUTING.md)
 - [联调配置](docs/COLLABORATION.md)
+- [三方联调分支与验收](docs/FULL-STACK-INTEGRATION.md)
 - [小程序侧 API](docs/BUYER-API.md)
 - [上游兼容性](UPSTREAM-COMPATIBILITY.md)
 - [第三方说明](THIRD_PARTY_NOTICES.md)
