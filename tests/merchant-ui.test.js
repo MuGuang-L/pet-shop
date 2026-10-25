@@ -8,15 +8,15 @@ const source = fs.readFileSync(require.resolve('../apps/merchant-web/app.js'), '
 
 function fixture(intercept) {
   let state = domain.seed();
-  const nodes = {}, calls = [];
+  const nodes = {}, calls = [], listeners = {};
   const node = id => nodes[id] ||= {
     innerHTML: '', textContent: '', value: '', checked: false, style: {}, attrs: {}, open: false,
     setAttribute(k, v) { this.attrs[k] = v; }, showModal() { this.open = true; },
-    close() { this.open = false; }, querySelector() { return null; }, appendChild() {}
+    close() { this.open = false; }, addEventListener(type, callback) { listeners[id+':'+type]=callback; }, querySelector() { return null; }, appendChild() {}
   };
   const context = vm.createContext({
     Studio, console, document: { getElementById: node, querySelectorAll: () => [], createElement: () => ({ style: {} }) },
-    window: { addEventListener() {} }, confirm: () => true,
+    window: { addEventListener(type, callback) {listeners[type]=callback;} },
     fetch: async (url, req) => {
       assert.equal(url, '/api');
       assert.equal(req.credentials, 'same-origin');
@@ -34,7 +34,10 @@ function fixture(intercept) {
     }
   });
   vm.runInContext(source, context);
-  return { run: code => vm.runInContext(code, context), node, calls, state: () => state };
+  return { run: code => vm.runInContext(code, context), node, calls, state: () => state,
+    event: (name,e={}) => listeners[name]?.(e),
+    buyer: (action,input) => {const result=domain.execute(state,{id:'buyer-test',merchant:false},action,input,{mock:true});state=result.state;return result.result;}
+  };
 }
 
 test('商家商品筛选按规格识别低库存、组合搜索，并保持原始商品顺序', () => {
@@ -79,13 +82,13 @@ test('已完成及退款自提订单不再提示待核销', () => {
 test('快速切换页面时，较晚返回的旧订单请求不会覆盖商品页面', async () => {
   let release;
   const gate = new Promise(resolve => { release = resolve; });
-  const f = fixture(body => body.action === 'merchantOrdersPage' ? gate : undefined);
+  const f = fixture(body => body.action === 'merchantOrders' ? gate : undefined);
   const orders = f.run("show('orders')");
   await f.run("show('products')");
   const products = f.node('app').innerHTML;
   release();
   await orders;
-  assert.equal(f.node('section-title').textContent, '商品管理');
+  assert.equal(f.node('section-title').textContent, '商品');
   assert.equal(f.node('app').innerHTML, products);
   assert.equal(f.node('app').attrs['aria-busy'], 'false');
 });
@@ -93,7 +96,7 @@ test('快速切换页面时，较晚返回的旧订单请求不会覆盖商品�
 test('退出页面使在途请求失效，不重新显示经营数据', async () => {
   let release;
   const gate = new Promise(resolve => { release = resolve; });
-  const f = fixture(body => body.action === 'merchantOrdersPage' ? gate : undefined);
+  const f = fixture(body => body.action === 'merchantOrders' ? gate : undefined);
   const pending = f.run("show('orders')");
   f.run('loginScreen()');
   release();
@@ -110,13 +113,13 @@ test('加载失败显示重试入口，重试成功后清除错误与忙碌状�
   assert.equal(f.node('app').attrs['aria-busy'], 'false');
   fail = false;
   await f.run("show('products')");
-  assert.match(f.node('app').innerHTML, /小店的好物/);
+  assert.match(f.node('app').innerHTML, /商品列表/);
   assert.equal(f.node('error').style.display, 'none');
 });
 
 test('订单筛选保留服务侧契约，重置回到全部订单第一页', async () => {
   const f = fixture();
-  await f.run("orderSearch='绳结';orderStatus='PAID';fulfillmentFilter='PICKUP';orderPageNumber=3;show('orders')");
+  await f.run("orderQueue='all';orderSearch='绳结';orderStatus='PAID';fulfillmentFilter='PICKUP';orderPageNumber=3;show('orders')");
   assert.deepEqual(f.calls.find(c => c.action === 'merchantOrdersPage').input, {
     q: '绳结', status: 'PAID', page: 3, fulfillment: 'PICKUP'
   });
@@ -165,4 +168,108 @@ test('商品保存抑制重复提交，仍使用原有金额与规格契约', as
   assert.equal(saves[0].input.skus[0].price, 2150);
   assert.equal(saves[0].input.skus[0].stock, 8);
   assert.equal(f.node('save-product').disabled, false);
+});
+
+function fillEditor(f,overrides={}){
+  const product=JSON.parse(f.run('JSON.stringify(editing)'));
+  for(const [key,value] of Object.entries({pname:product.name,category:product.category,'pet-scope':product.petScope||'通用','pick-note':product.pickNote||'',description:product.description||'',...overrides}))f.node(key).value=value;
+  f.node('active').checked=product.active;
+  f.node('featured').checked=!!product.featured;
+  product.skus.forEach((k,i)=>{f.node('sku-name-'+i).value=k.name;f.node('sku-price-'+i).value=k.priceYuan??(k.price/100).toFixed(2);f.node('sku-stock-'+i).value=String(k.stock);});
+}
+test('待办按履约阶段互斥分类，已结束和待买家退货不计入待办',()=>{
+  const f=fixture();
+  f.run(`sampleOrders=[
+    {id:'a',status:'PAID',createdAt:1,fulfillment:{type:'PICKUP'},lines:[{name:'玩具'}]},
+    {id:'b',status:'PAID',createdAt:2,fulfillment:{type:'PICKUP',readyAt:1},lines:[{name:'猫粮'}]},
+    {id:'c',status:'PAID',createdAt:3,fulfillment:{type:'DELIVERY'},lines:[{name:'玩具'}]},
+    {id:'d',status:'REFUND_REQUESTED',createdAt:4,refund:{stage:'REQUESTED'},lines:[{name:'梳子'}]},
+    {id:'e',status:'REFUND_REQUESTED',createdAt:5,refund:{stage:'WAIT_RETURN'},lines:[{name:'梳子'}]},
+    {id:'f',status:'COMPLETED',createdAt:6,fulfillment:{type:'PICKUP',readyAt:1},lines:[{name:'猫粮'}]},
+    {id:'g',status:'REFUNDED',createdAt:7,refund:{stage:'SUCCEEDED'},lines:[{name:'玩具'}]}
+  ]`);
+  assert.equal(f.run("sampleOrders.map(orderTask).join(',')"),'prepare,pickup,delivery,aftersale,,,');
+  assert.equal(f.run("taskOrderPage(sampleOrders,'todo').total"),4);
+  assert.equal(f.run("taskOrderPage(sampleOrders,'todo',{q:'玩具',fulfillment:'DELIVERY'}).items[0].id"),'c');
+  assert.equal(f.run("taskOrderPage(sampleOrders,'pickup',{page:999}).page"),1);
+  assert.equal(f.run("taskOrderPage(sampleOrders,'todo').items.map(o=>o.id).join()"),'a,b,c,d');
+  f.run("sampleOrders=Array.from({length:25},(_,i)=>({...sampleOrders[0],id:'o'+i,createdAt:i}))");
+  assert.equal(f.run("taskOrderPage(sampleOrders,'todo',{page:2}).items.length"),10);
+  assert.equal(f.run("taskOrderPage(sampleOrders,'todo',{page:3}).items.length"),5);
+});
+test('输入、Esc 与离开页面提醒；选择继续编辑时保留草稿',async()=>{
+  const f=fixture();await f.run("show('products');");f.run("editor('toy')");
+  fillEditor(f);f.node('pname').value='未保存名称';
+  f.event('input',{target:{closest:()=>true}});
+  assert.equal(f.run('closeModal()'),false);assert.equal(f.node('modal').open,true);
+  assert.equal(f.node('discard-dialog').open,true);f.run('resolveDiscard(false)');
+  assert.equal(f.node('discard-dialog').open,false);assert.equal(f.node('pname').value,'未保存名称');
+  let prevented=false;f.event('modal:cancel',{preventDefault(){prevented=true;}});
+  assert.equal(prevented,true);assert.equal(f.node('modal').open,true);
+  const unload={preventDefault(){this.prevented=true;}};f.event('beforeunload',unload);
+  assert.equal(unload.prevented,true);
+  assert.equal(f.node('discard-dialog').open,true);f.run('resolveDiscard(true)');
+  assert.equal(f.node('modal').open,false);
+  assert.equal(f.calls.filter(c=>c.action==='saveProduct').length,0);
+  f.run("editor('toy');markDirty();closeModal();loginScreen()");
+  assert.equal(f.node('discard-dialog').open,false);
+  assert.equal(f.run('discardAction'),null);
+});
+test('新增与移除规格保留输入，现有规格编号不允许移除',async()=>{
+  const f=fixture();await f.run("show('products')");f.run("editor('food')");fillEditor(f);
+  const original=f.run('editing.skus[0].id');f.node('sku-price-0').value='40.50';
+  f.run('addEditorSku()');assert.equal(f.run('editing.skus.length'),3);
+  assert.equal(f.run('editing.skus[0].priceYuan'),'40.50');
+  assert.equal(f.run('editing.skus[0].id'),original);
+  fillEditor(f);f.run('removeEditorSku(2)');assert.equal(f.run('editing.skus.length'),2);
+  assert.throws(()=>f.run('removeEditorSku(0)'),/已有规格需保留/);
+  f.node('batch-price').value='18.90';f.run('applySkuPrice()');
+  assert.equal(f.run("editing.skus.map(k=>k.priceYuan).join()"),'18.90,18.90');
+  const validation={error:Error('请填写统一售价'),preventDefault(){this.prevented=true;}};
+  f.event('error',validation);
+  assert.equal(validation.prevented,true);assert.equal(f.node('error').textContent,'请填写统一售价');
+  fillEditor(f);f.node('sku-name-1').value=f.node('sku-name-0').value;
+  assert.throws(()=>f.run('productPayload()'),/规格名称不能重复/);
+});
+test('图片排序同时更新封面，拖拽和按钮使用相同顺序，不立即写库',async()=>{
+  const f=fixture();await f.run("show('products')");f.run("editor('toy');chooseStudioImage('product','/assets/bowl-v3.jpg');chooseStudioImage('product','/assets/care-v2.jpg')");
+  f.run('movePhoto(2,0)');assert.equal(f.run('editing.image'),'/assets/toy-v2.jpg');
+  f.run("dropPhoto({preventDefault(){},dataTransfer:{getData:()=> '2'}},1)");
+  assert.equal(f.run("editing.images.join()"),'/assets/toy-v2.jpg,/assets/bowl-v3.jpg,/assets/care-v2.jpg');
+  f.run("dropPhoto({preventDefault(){},dataTransfer:{getData:()=> ''}},0);movePhoto(-1,0)");
+  assert.equal(f.run('editing.images.length'),3);
+  f.run('removePhoto(0)');assert.equal(f.run('editing.image'),'/assets/bowl-v3.jpg');
+  assert.equal(f.run('modalDirty'),true);
+  assert.equal(f.calls.filter(c=>c.action==='saveProduct').length,0);
+});
+test('保存失败保留表单与修改提醒，图片上传中阻止保存',async()=>{
+  let fail=true;
+  const f=fixture(body=>{if(body.action==='saveProduct'&&fail)throw Error('网络暂时不可用');});
+  await f.run("show('products')");f.run("editor('toy')");fillEditor(f,{pname:'保留的名称'});f.run('markDirty()');
+  await assert.rejects(f.run('saveProduct({preventDefault(){}})'),/网络暂时不可用/);
+  assert.equal(f.node('modal').open,true);assert.equal(f.node('pname').value,'保留的名称');
+  assert.equal(f.node('product-fields').disabled,false);assert.equal(f.run('modalDirty'),true);
+  f.run('pendingUploads=1');
+  await assert.rejects(f.run('saveProduct({preventDefault(){}})'),/图片正在上传/);
+  f.run('pendingUploads=0');fail=false;
+  await f.run('saveProduct({preventDefault(){}})');
+  assert.equal(f.run('modalDirty'),false);assert.match(f.node('notice').textContent,/已保存「保留的名称」/);
+});
+test('商家保存多规格商品后买家可选规格下单，商家外送后买家确认收货',async()=>{
+  const f=fixture();await f.run("show('products')");f.run("editor(null,'living')");fillEditor(f,{pname:'流程验收食碗'});
+  f.run('addEditorSku()');fillEditor(f,{pname:'流程验收食碗'});
+  f.node('sku-name-0').value='小号';f.node('sku-price-0').value='19.90';f.node('sku-stock-0').value='5';
+  f.node('sku-name-1').value='大号';f.node('sku-price-1').value='29.90';f.node('sku-stock-1').value='8';f.node('active').checked=true;
+  await f.run('saveProduct({preventDefault(){}})');
+  const product=f.buyer('catalog',{}).find(p=>p.name==='流程验收食碗');
+  assert.equal(product.skus[1].price,2990);
+  const address=f.buyer('saveAddress',{name:'测试收件人',phone:'13800000000',detail:'模拟市测试街道 1 号'});
+  const order=f.buyer('createOrder',{key:'merchant-flow',fulfillment:'DELIVERY',addressId:address.id,lines:[{productId:product.id,skuId:product.skus[1].id,qty:2}]});
+  f.buyer('mockPay',{id:order.id});await f.run("viewOrder('"+order.id+"')");
+  f.node('number').value='SIM-DELIVERY-01';f.node('delivery-note').value='模拟店员配送';
+  await f.run('ship()');
+  assert.equal(f.buyer('order',{id:order.id}).status,'SHIPPED');
+  f.buyer('confirmReceipt',{id:order.id});
+  assert.equal(f.buyer('order',{id:order.id}).status,'COMPLETED');
+  assert.equal(f.buyer('catalog',{}).find(p=>p.id===product.id).skus[1].stock,6);
 });

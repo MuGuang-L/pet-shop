@@ -1,1 +1,45 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>爪爪小铺 · 商家工作台</title><link rel="stylesheet" href="/admin/base.css"><link rel="stylesheet" href="/admin/app.css"></head><body><section id="login"><div class="login-story"><span>PAW STORE STUDIO</span><h1>把小店的日常，<br>照顾得井井有条。</h1><p>商品、订单与每一份期待，都在这里。</p><img src="/assets/hero-calm-v3.jpg" alt="温暖日光里的猫咪"></div><form class="login-form" onsubmit="login(event)"><span class="eyebrow">WELCOME BACK</span><h2>登录商家工作台</h2><p class="muted">独立商家账号 · 模拟经营环境</p><label>账号<input id="username" autocomplete="username" required placeholder="商家账号"></label><label>密码<input id="password" type="password" autocomplete="current-password" required placeholder="输入密码"></label><p id="login-error" role="alert"></p><button id="login-button" class="primary full">进入工作台 →</button><small>仅供开发联调，不产生真实付款与退款。</small></form></section><div id="workspace" hidden><aside class="admin-sidebar"><div class="admin-brand">w <span>爪爪小铺<small>MERCHANT STUDIO</small></span></div><div class="nav-caption">店铺工作台</div><nav aria-label="商家导航"><button data-section="orders" onclick="show('orders')">订单与履约 <span>01</span></button><button data-section="products" onclick="show('products')">商品管理 <span>02</span></button><button data-section="store" onclick="show('store')">店铺装修 <span>03</span></button></nav><div class="sidebar-card"><img src="/assets/empty-v2.jpg" alt="猫咪与收纳篮"><p>好物相伴，日常有光。</p><small>A LITTLE SHOP, A LOT OF LOVE.</small></div><div class="sidebar-foot">模拟经营环境<small>小程序侧与服务侧共享经营数据</small></div></aside><main class="admin-main"><header class="admin-header"><div><span class="eyebrow">GOOD DAYS AT LITTLE PAWS</span><h1 id="section-title">订单与履约</h1><p id="section-note"></p></div><div class="operator-controls"><span id="operator"></span><button onclick="logout()">退出登录</button></div></header><div id="error" role="alert"></div><section id="app" aria-busy="false"></section></main></div><dialog id="modal" aria-label="商家操作详情"></dialog><script src="/studio.js"></script><script src="/admin/app.js"></script></body></html>
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>爪爪小铺 · 商家后台</title>
+  <link rel="stylesheet" href="/admin/base.css">
+  <link rel="stylesheet" href="/admin/app.css">
+</head>
+<body>
+<section id="login">
+  <div class="login-story"><span>爪爪小铺</span><h1>商家后台</h1><p>管理商品、处理订单、更新店铺页面。</p><img src="/assets/hero-calm-v3.jpg" alt="猫咪"></div>
+  <form class="login-form" onsubmit="login(event)">
+    <h2>登录</h2><p class="muted">请使用商家账号</p>
+    <label>账号<input id="username" autocomplete="username" required placeholder="商家账号"></label>
+    <label>密码<input id="password" type="password" autocomplete="current-password" required placeholder="输入密码"></label>
+    <p id="login-error" role="alert"></p><button id="login-button" class="primary full">登录</button>
+    <small>模拟经营环境，不产生真实付款与退款。</small>
+  </form>
+</section>
+<div id="workspace" hidden>
+  <aside class="admin-sidebar">
+    <div class="admin-brand"><span>爪爪小铺<small>商家后台</small></span></div>
+    <nav aria-label="商家导航">
+      <button data-section="orders" onclick="show('orders')">订单</button>
+      <button data-section="products" onclick="show('products')">商品</button>
+      <button data-section="store" onclick="show('store')">店铺页面</button>
+    </nav>
+    <div class="sidebar-foot">模拟经营<small>付款与退款均为模拟操作</small></div>
+  </aside>
+  <main class="admin-main">
+    <header class="admin-header"><div><h1 id="section-title">订单</h1><p id="section-note"></p></div><div class="operator-controls"><span id="operator"></span><button onclick="logout()">退出登录</button></div></header>
+    <div id="error" role="alert"></div><div id="notice" class="save-notice" role="status" hidden></div>
+    <section id="app" aria-busy="false"></section>
+  </main>
+</div>
+<dialog id="modal" aria-label="商家操作详情"></dialog>
+<dialog id="discard-dialog" aria-labelledby="discard-title" aria-describedby="discard-description">
+  <h2 id="discard-title">放弃未保存的修改？</h2>
+  <p id="discard-description">这次编辑的内容尚未保存。继续编辑可以保留当前填写的内容。</p>
+  <div class="discard-actions"><button autofocus onclick="resolveDiscard(false)">继续编辑</button><button class="primary" onclick="resolveDiscard(true)">放弃修改</button></div>
+</dialog>
+<script src="/studio.js"></script><script src="/admin/app.js"></script>
+</body>
+</html>
