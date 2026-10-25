@@ -5,6 +5,7 @@ const {randomUUID,createHash}=require('node:crypto');
 const collections=['products','orders','address_books','idempotency_keys','payment_events','stock_movements'];
 const hash=s=>createHash('sha256').update(s).digest('hex');
 const same=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
+const transaction=(session,work,options={})=>session.withTransaction(work,{timeoutMS:12000,...options});
 function documents(state){return {
  stock_movements:(state.stockMovements||[]).map((value,position)=>({_id:value.id,orderId:value.orderId,caseId:value.caseId,position,value})),
  products:state.products.map((value,position)=>({_id:value.id,position,value})),
@@ -18,7 +19,7 @@ class MongoStore{
  constructor(client,db){this.client=client;this.db=db;}
  static async connect({uri=process.env.MONGODB_URI||'mongodb://127.0.0.1:27018/?replicaSet=petshop',database=process.env.MONGODB_DATABASE||'pet_shop_demo'}={}){
   if(!/^pet_shop_[a-zA-Z0-9_]+$/.test(database))throw Error('DATABASE_NAME_MUST_START_WITH_pet_shop_');
-  const client=new MongoClient(uri,{serverSelectionTimeoutMS:7000,maxPoolSize:10});
+  const client=new MongoClient(uri,{serverSelectionTimeoutMS:5000,connectTimeoutMS:5000,waitQueueTimeoutMS:5000,socketTimeoutMS:10000,maxPoolSize:10});
   try{await client.connect();const hello=await client.db('admin').command({hello:1});if(!hello.setName)throw Error('MONGODB_REPLICA_SET_REQUIRED');const store=new MongoStore(client,client.db(database));await store.initialize();return store;}catch(e){await client.close();throw e;}
  }
  async initialize(){
@@ -28,7 +29,7 @@ class MongoStore{
   await this.db.collection('audit_log').createIndex({at:-1});
   await this.db.collection('stock_movements').createIndex({orderId:1,caseId:1});
   // Seed only once. An existing database is never reset at startup.
-  const session=this.client.startSession();try{await session.withTransaction(async()=>{const meta=await this.db.collection('shop_meta').findOne({_id:'settings'},{session});if(meta){if(meta.schemaVersion!==1)throw Error('UNSUPPORTED_DATABASE_SCHEMA');return;}const state=seed();await this.db.collection('shop_meta').insertOne({_id:'settings',schemaVersion:1,revision:0,value:metadata(state)},{session});const docs=documents(state);for(const name of collections)if(docs[name].length)await this.db.collection(name).insertMany(docs[name],{session});});}finally{await session.endSession();}
+  const session=this.client.startSession();try{await transaction(session,async()=>{const meta=await this.db.collection('shop_meta').findOne({_id:'settings'},{session});if(meta){if(meta.schemaVersion!==1)throw Error('UNSUPPORTED_DATABASE_SCHEMA');return;}const state=seed();await this.db.collection('shop_meta').insertOne({_id:'settings',schemaVersion:1,revision:0,value:metadata(state)},{session});const docs=documents(state);for(const name of collections)if(docs[name].length)await this.db.collection(name).insertMany(docs[name],{session});});}finally{await session.endSession();}
  }
  async load(session){
   const meta=await this.db.collection('shop_meta').findOne({_id:'settings'},{session});if(!meta)throw Error('DATABASE_NOT_INITIALIZED');
@@ -46,7 +47,7 @@ class MongoStore{
  }
  async execute(actor,action,input={},options={mock:true}){
   if(action==='ordersPage'||action==='merchantOrdersPage')return this.orderPage(actor,action,input,options);
-  const session=this.client.startSession();let result;try{await session.withTransaction(async()=>{const {state,meta}=await this.load(session);const out=execute(state,actor,action,input,options);await this.persist(state,out.state,meta,session,actor,action);result=out.result;},{readConcern:{level:'snapshot'},writeConcern:{w:'majority'}});return result;}finally{await session.endSession();}
+  const session=this.client.startSession();let result;try{await transaction(session,async()=>{const {state,meta}=await this.load(session);const out=execute(state,actor,action,input,options);await this.persist(state,out.state,meta,session,actor,action);result=out.result;},{readConcern:{level:'snapshot'},writeConcern:{w:'majority'}});return result;}finally{await session.endSession();}
  }
  async orderPage(actor,action,input,options){
   if(!actor||typeof actor.id!=='string'||!actor.id)throw Error('AUTH_REQUIRED');
@@ -57,13 +58,13 @@ class MongoStore{
   if(args.status!=='ALL')filter.status=args.status==='AFTERSALE'?{$in:['REFUND_REQUESTED','REFUNDING','REFUNDED']}:args.status;
   if(args.fulfillment!=='ALL')filter['value.fulfillment.type']=args.fulfillment==='DELIVERY'?{$ne:'PICKUP'}:'PICKUP';
   if(args.q){const literal=args.q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');filter.$or=[{_id:{$regex:literal,$options:'i'}},{'value.lines.name':{$regex:literal,$options:'i'}}];}
-  const session=this.client.startSession();let result;try{await session.withTransaction(async()=>{const col=this.db.collection('orders');const total=await col.countDocuments(filter,{session}),pages=Math.max(1,Math.ceil(total/args.pageSize)),page=Math.min(args.page,pages);const rows=await col.find(filter,{session}).sort({createdAt:-1,_id:-1}).skip((page-1)*args.pageSize).limit(args.pageSize).toArray();const paidCount=await col.countDocuments({...scope,status:'PAID'},{session});result={items:rows.map(x=>x.value),page,pageSize:args.pageSize,total,pages,paidCount};},{readConcern:{level:'snapshot'}});return result;}finally{await session.endSession();}
+  const session=this.client.startSession();let result;try{await transaction(session,async()=>{const col=this.db.collection('orders');const total=await col.countDocuments(filter,{session}),pages=Math.max(1,Math.ceil(total/args.pageSize)),page=Math.min(args.page,pages);const rows=await col.find(filter,{session}).sort({createdAt:-1,_id:-1}).skip((page-1)*args.pageSize).limit(args.pageSize).toArray();const paidCount=await col.countDocuments({...scope,status:'PAID'},{session});result={items:rows.map(x=>x.value),page,pageSize:args.pageSize,total,pages,paidCount};},{readConcern:{level:'snapshot'}});return result;}finally{await session.endSession();}
  }
- async snapshot(){const session=this.client.startSession();let state;try{await session.withTransaction(async()=>{state=(await this.load(session)).state;},{readConcern:{level:'snapshot'}});return state;}finally{await session.endSession();}}
+ async snapshot(){const session=this.client.startSession();let state;try{await transaction(session,async()=>{state=(await this.load(session)).state;},{readConcern:{level:'snapshot'}});return state;}finally{await session.endSession();}}
  async restore(state){
   if(!this.db.databaseName.startsWith('pet_shop_restore_'))throw Error('RESTORE_REQUIRES_NEW_pet_shop_restore_DATABASE');
   if(!state||state.version!==1||!Array.isArray(state.products)||!Array.isArray(state.orders)||!state.addresses||!state.keys||!state.events)throw Error('INVALID_BACKUP');
-  const session=this.client.startSession();try{await session.withTransaction(async()=>{const before=await this.load(session);if(before.meta.revision!==0)throw Error('RESTORE_TARGET_NOT_EMPTY');await this.persist(before.state,state,before.meta,session,{id:'system'},'restore');});}finally{await session.endSession();}
+  const session=this.client.startSession();try{await transaction(session,async()=>{const before=await this.load(session);if(before.meta.revision!==0)throw Error('RESTORE_TARGET_NOT_EMPTY');await this.persist(before.state,state,before.meta,session,{id:'system'},'restore');});}finally{await session.endSession();}
  }
  async close(){await this.client.close();}
 }

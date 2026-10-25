@@ -32,6 +32,8 @@
 | storefront | {} | hero/cat/dog/empty/avatar 等图片槽位 |
 | homeContent | {} | headline/subtitle/featuredTitle/featuredIntro/newTitle/scenes |
 | identity | {} | 当前用户身份 |
+| shopSettings | {} | 门店信息、营业时间、自提与外送开关和费用、版本号 |
+| quoteOrder | {fulfillment,lines} | 服务端报价、settingsRevision、pickupStore；不创建订单、不占库存 |
 | addresses | {} | 当前买家地址数组 |
 | saveAddress | {id?,name,phone,detail} | 新地址或修改结果；11 位手机号，详细地址 5～200 字 |
 | deleteAddress | {id} | true |
@@ -56,7 +58,25 @@
 
 自提不用 addressId，改传：`"fulfillment":"PICKUP","contact":{"name":"模拟提货人","phone":"13800000000"}`。
 
-服务端计算价格与配送费，勿传可信金额。自提免配送费；外送当前演示费 800 分。`key` 仅限字母、数字、横线、下划线，示例中文说明不能直接当 key。
+服务端计算价格与配送费，勿传可信金额。自提免配送费；外送默认演示费 800 分，实际规则读取 `shopSettings`，提交前使用 `quoteOrder` 核对。`createOrder` 可附加报价中的 `settingsRevision` 与 `expectedTotal`，发生变化时拒绝创建并提示刷新。`key` 仅限字母、数字、横线、下划线，示例中文说明不能直接当 key。
+
+经营设置字段、快照与兼容说明见 [门店经营设置](SHOP-SETTINGS.md)。新增接口不会要求旧请求增加必填字段；实际费用和开放方式由服务端决定。小程序侧应接入动态读取后再调整门店经营规则，避免继续显示写死的地址和费用。
+
+### 中断恢复与重复提交
+
+2026-10-25 增加跨页面重启的下单恢复。`createOrder` 的 URL、参数和返回结构不变。
+
+- 在发送请求前，把完整 input 和 key 写入本地存储，按 API 根地址与账号 ID 隔离；不能只保存在 Page 实例中。
+- 超时、断网、401、非业务响应、5xx 都保留原请求。同一账号重新登录或重新打开页面时，用原 key 和原 input 找回订单；不能重新生成 key。
+- 服务端在检查最新库存和经营设置前查找已提交的 key，因此订单已创建但响应丢失时，重试返回原订单。订单可能已过期或状态已变化，应展示服务端返回的状态。
+- 只有确定的业务拒绝才清除待确认记录。数据库故障返回 503、`retryable:true` 和 `DATABASE_TEMPORARILY_UNAVAILABLE`，不得当作确定下单失败。
+- 收到成功响应后先持久化完成记录，再更新购物车，最后清除待确认记录；本地写入中断后可继续完成，避免重复清空或重复扣减购物车。
+
+参考实现为 `services/checkout.js`、`services/api.js` 和 `pages/shop/index.js`。同步时保留小程序侧已有界面修改，只合并下单恢复逻辑。未同步的旧客户端仍能联调，但关闭页面后的自动恢复能力不会由服务端升级自动获得。卸载或手动清空本地存储后，应先查询订单，再决定是否重新下单。
+
+服务侧商品编辑增加 `revision`：`merchantProducts` 返回版本号，`saveProduct` 更新已有商品时必须原样提交；版本过期或缺失返回 `PRODUCT_REVISION_CONFLICT`。此要求仅针对商家修改商品，不增加买家下单必填字段。
+
+新增地址可带 `requestKey`（8～80 位字母、数字、横线、下划线），当前地址编辑表单内重试应复用。同账号同 key 相同输入只新增一次；已提交后改输入返回 `CREATE_REQUEST_CONFLICT`，先刷新地址列表核对。参数为可选，不影响旧客户端。读取动作最多自动重试一次，写入不自动重发；详细规则见 [网络可靠性](NETWORK-RELIABILITY.md)。
 
 ### 订单和状态
 

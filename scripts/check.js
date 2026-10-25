@@ -4,3 +4,4 @@ function walk(dir){for(const e of fs.readdirSync(dir,{withFileTypes:true})){if([
 walk(root);
 if(fs.readFileSync(path.join(root,'miniprogram/lib/domain.js'),'utf8')!==fs.readFileSync(path.join(root,'cloudfunctions/shop/domain.js'),'utf8'))throw Error('Run npm run build to synchronize mock domain');
 console.log('Syntax/JSON checked '+count+' files; shared domain synchronized. WXML needs WeChat developer tool validation.');
+if(fs.readFileSync(path.join(root,'miniprogram/lib/shop-settings.js'),'utf8')!==fs.readFileSync(path.join(root,'cloudfunctions/shop/shop-settings.js'),'utf8'))throw Error('Run npm run build to synchronize shop settings');

@@ -1,19 +1,22 @@
 'use strict';
 const studio = require('./studio');
 const aftersales = require('./aftersales');
+const shopSettings = require('./shop-settings');
 function validImage(image,mock){const bundled=studio.assets.some(a=>a.src===image);need(image.length<=1024&&(!image||bundled||/^(cloud:\/\/|wxfile:\/\/|http:\/\/(tmp|usr|store)\/|\/uploads\/[a-f0-9-]+\.(png|jpg)$)/.test(image)),'IMAGE_PATH');need(mock===true||!image||bundled||image.startsWith('cloud://'),'CLOUD_IMAGE_REQUIRED');return image;}
 const clone = x => JSON.parse(JSON.stringify(x));
 const fail = (code) => { throw new Error(code); };
 const need = (yes, code) => { if (!yes) fail(code); };
 function seed() {
   return {version:1, sequence:0, products:[
-    {id:'food',name:'样例 · 鲜肉猫粮',category:'主粮',description:'虚构样例商品，用于流程验收。正式销售前填写配料、适用年龄、保质期及生产信息。',image:'',active:true,skus:[{id:'food-1',name:'1kg 体验装',price:3900,stock:20},{id:'food-2',name:'2kg 家庭装',price:7200,stock:10}]},
-    {id:'toy',name:'样例 · 绳结玩具',category:'玩具',description:'虚构样例。适用于互动玩耍，规格与材质仅用于演示。',image:'',active:true,skus:[{id:'toy-1',name:'薄荷绿 / M',price:1900,stock:30}]},
-    {id:'care',name:'样例 · 宠物梳',category:'清洁',description:'虚构样例。正式商品请填写材质、尺寸和使用注意事项。',image:'',active:true,skus:[{id:'care-1',name:'标准款',price:2900,stock:15}]}
+    {id:'food',revision:0,name:'样例 · 鲜肉猫粮',category:'主粮',description:'虚构样例商品，用于流程验收。正式销售前填写配料、适用年龄、保质期及生产信息。',image:'',active:true,skus:[{id:'food-1',name:'1kg 体验装',price:3900,stock:20},{id:'food-2',name:'2kg 家庭装',price:7200,stock:10}]},
+    {id:'toy',revision:0,name:'样例 · 绳结玩具',category:'玩具',description:'虚构样例。适用于互动玩耍，规格与材质仅用于演示。',image:'',active:true,skus:[{id:'toy-1',name:'薄荷绿 / M',price:1900,stock:30}]},
+    {id:'care',revision:0,name:'样例 · 宠物梳',category:'清洁',description:'虚构样例。正式商品请填写材质、尺寸和使用注意事项。',image:'',active:true,skus:[{id:'care-1',name:'标准款',price:2900,stock:15}]}
   ],orders:[],stockMovements:[],addresses:{},keys:{},events:{},shippingFee:800};
 }
 function address(a) { need(a && typeof a.name==='string' && a.name.trim().length>0 && a.name.length<=40,'ADDRESS_NAME'); need(/^1\d{10}$/.test(a.phone),'ADDRESS_PHONE'); need(typeof a.detail==='string' && a.detail.trim().length>=5 && a.detail.length<=200,'ADDRESS_DETAIL'); return {name:a.name.trim(),phone:a.phone,detail:a.detail.trim()}; }
-function release(s,o) { if(o.released) return; for(const line of o.lines) { const p=s.products.find(p=>p.id===line.productId); const sku=p&&p.skus.find(k=>k.id===line.skuId); need(sku,'RESERVED_SKU_MISSING'); sku.stock+=line.qty; } o.released=true; }
+// Stock that may still be released by cancellation, expiry or a pre-dispatch refund.
+function reservedStock(state,productId,skuId){return state.orders.filter(o=>!o.released&&(o.status==='PENDING'||o.status==='PAID'||o.status.startsWith('REFUND')&&o.refund?.previous==='PAID')).reduce((sum,o)=>sum+o.lines.filter(l=>l.productId===productId&&l.skuId===skuId).reduce((n,l)=>n+l.qty,0),0);}
+function release(s,o) { if(o.released) return; for(const line of o.lines) { const p=s.products.find(p=>p.id===line.productId); const sku=p&&p.skus.find(k=>k.id===line.skuId); need(sku,'RESERVED_SKU_MISSING'); need(sku.stock+line.qty<=100000,'STOCK_CAPACITY_EXCEEDED');sku.stock+=line.qty;p.revision=(p.revision??0)+1; } o.released=true; }
 function expire(s,now) { for(const o of s.orders) if(o.status==='PENDING' && o.expiresAt<=now) { release(s,o); o.status='EXPIRED'; o.updatedAt=now; } }
 // Internal settlement contract only. Never expose as a client action. The future
 // gateway must verify/decrypt the provider notification and bind app/merchant first.
@@ -41,9 +44,20 @@ function execute(state,actor,action,input={},options={}) {
   const merchant=()=>need(actor.merchant===true,'FORBIDDEN');
   expire(s,now);
   const owned=()=>{const o=s.orders.find(o=>o.id===input.id);need(o,'ORDER_NOT_FOUND');need(o.userId===actor.id || actor.merchant===true,'FORBIDDEN');return o;};
-  if(aftersales.actions.has(action)){const result=aftersales.handle(s,actor,action,input,{...options,now},{release,address});return {state:s,result:clone(result)};}
+  if(aftersales.actions.has(action)){const result=aftersales.handle(s,actor,action,input,{...options,now},{release,address,reservedStock});return {state:s,result:clone(result)};}
+  // New-item retries may follow a committed write whose response was lost.
+  let mutationKey,mutationFingerprint;
+  if(['saveProduct','saveAddress'].includes(action)&&!input.id&&input.requestKey!==undefined){
+    if(action==='saveProduct')merchant();
+    need(typeof input.requestKey==='string'&&/^[a-zA-Z0-9_-]{8,80}$/.test(input.requestKey),'INVALID_REQUEST_KEY');
+    mutationKey=JSON.stringify(['create',action,actor.id,input.requestKey]);mutationFingerprint=JSON.stringify(input);
+    if(s.keys[mutationKey]){need(s.keys[mutationKey].fingerprint===mutationFingerprint,'CREATE_REQUEST_CONFLICT');return {state:s,result:clone(s.keys[mutationKey].result)};}
+  }
   let result;
   switch(action) {
+    case 'shopSettings': result=shopSettings.publicSettings(s,now);break;
+    case 'saveShopSettings': merchant();result=shopSettings.save(s,input,now);break;
+    case 'quoteOrder': result=shopSettings.quote(s,input,now);break;
     case 'storefront': result={...studio.defaults,...s.storefront};break;
     case 'saveStorefront': {merchant(); const next={...studio.defaults,...s.storefront};for(const slot of studio.slots){if(input[slot.key]!==undefined)next[slot.key]=validImage(String(input[slot.key]),options.mock)||studio.defaults[slot.key];}s.storefront=next;result=next;break;}
     case 'homeContent': result={...studio.homeDefaults,...s.homeContent};break;
@@ -60,11 +74,12 @@ function execute(state,actor,action,input={},options={}) {
       const type=input.fulfillment||'DELIVERY';need(['PICKUP','DELIVERY'].includes(type),'请选择自提或商家外送');const fingerprint=type==='PICKUP'?JSON.stringify({lines:normalized,type,contact:input.contact}):JSON.stringify({lines:normalized,addressId:input.addressId});
       const key=JSON.stringify([actor.id,input.key]);
       if(s.keys[key]) {need(s.keys[key].fingerprint===fingerprint,'IDEMPOTENCY_CONFLICT');result=s.orders.find(o=>o.id===s.keys[key].id);break;}
-      const a=type==='PICKUP'?address({...input.contact,detail:studio.pickupStore.detail}):(s.addresses[actor.id]||[]).find(a=>a.id===input.addressId);need(a,'ADDRESS_REQUIRED');
+      const quote=shopSettings.quote(s,input,now);
+      const a=type==='PICKUP'?address({...input.contact,detail:quote.pickupStore.detail}):(s.addresses[actor.id]||[]).find(a=>a.id===input.addressId);need(a,'ADDRESS_REQUIRED');
       const lines=[]; let subtotal=0; const seen=new Set();
-      for(const l of normalized) {need(Number.isSafeInteger(l.qty)&&l.qty>0&&l.qty<=99,'INVALID_QUANTITY');need(!seen.has(l.productId+'|'+l.skuId),'DUPLICATE_SKU');seen.add(l.productId+'|'+l.skuId);const p=s.products.find(p=>p.id===l.productId&&p.active);need(p,'PRODUCT_UNAVAILABLE');const k=p.skus.find(k=>k.id===l.skuId);need(k,'SKU_NOT_FOUND');need(k.stock>=l.qty,'OUT_OF_STOCK');k.stock-=l.qty;subtotal+=k.price*l.qty;lines.push({...l,name:p.name,spec:k.name,price:k.price,image:p.image});}
+      for(const l of normalized) {need(Number.isSafeInteger(l.qty)&&l.qty>0&&l.qty<=99,'INVALID_QUANTITY');need(!seen.has(l.productId+'|'+l.skuId),'DUPLICATE_SKU');seen.add(l.productId+'|'+l.skuId);const p=s.products.find(p=>p.id===l.productId&&p.active);need(p,'PRODUCT_UNAVAILABLE');const k=p.skus.find(k=>k.id===l.skuId);need(k,'SKU_NOT_FOUND');need(k.stock>=l.qty,'OUT_OF_STOCK');k.stock-=l.qty;p.revision=(p.revision??0)+1;subtotal+=k.price*l.qty;lines.push({...l,name:p.name,spec:k.name,price:k.price,image:p.image});}
       need(Number.isSafeInteger(subtotal)&&subtotal<=100000000,'AMOUNT_LIMIT');need(s.orders.length<500,'DEV_CAPACITY_LIMIT');
-      const shippingFee=type==='PICKUP'?0:s.shippingFee;const fulfillment={type};if(type==='PICKUP'){fulfillment.store=clone(studio.pickupStore);let code;do{code=String(Math.floor(100000+Math.random()*900000));}while(s.orders.some(o=>o.fulfillment?.code===code));fulfillment.code=code;}
+      const shippingFee=quote.shippingFee;const fulfillment={type,settingsRevision:quote.settingsRevision,instructions:quote.instructions};if(type==='DELIVERY')fulfillment.delivery=quote.delivery;if(type==='PICKUP'){fulfillment.store=clone(quote.pickupStore);let code;do{code=String(Math.floor(100000+Math.random()*900000));}while(s.orders.some(o=>o.fulfillment?.code===code));fulfillment.code=code;}
       result={fulfillment,id:'o'+(++s.sequence),userId:actor.id,lines,address:clone(a),subtotal,shippingFee,total:subtotal+shippingFee,status:'PENDING',createdAt:now,updatedAt:now,expiresAt:now+15*60*1000,released:false,refund:null,shipping:null};
       s.orders.push(result);s.keys[key]={fingerprint,id:result.id};break;
     }
@@ -77,15 +92,16 @@ function execute(state,actor,action,input={},options={}) {
     case 'mockPay': {need(options.mock===true,'MOCK_DISABLED');const o=owned();need(o.userId===actor.id,'FORBIDDEN');if(o.status==='PAID'){result=o;break;}need(o.status==='PENDING','INVALID_STATE');o.status='PAID';o.payment={provider:'MOCK',transactionId:'mock-'+o.id,amount:o.total};o.updatedAt=now;result=o;break;}
     case 'confirmReceipt': {const o=owned();need(o.userId===actor.id,'FORBIDDEN');need(o.status==='SHIPPED','INVALID_STATE');o.status='COMPLETED';result=o;break;}
     case 'tracking': {const o=owned();result={mock:true,company:o.fulfillment?.type==='PICKUP'?'到店自提':'商家自行配送',number:o.shipping?.number,note:o.shipping?.note,events:o.shipping?[{time:o.shipping.at,text:'商家已登记送出'}]:[],notice:o.fulfillment?.type==='PICKUP'?'请在备货完成后凭提货码到店领取':'进度由商家登记，未接入实时位置或第三方物流轨迹'};break;}
-    case 'merchantProducts':merchant();result=s.products;break;
+    case 'merchantProducts':merchant();result=s.products.map(p=>({...p,revision:p.revision??0}));break;
     case 'merchantOrders':merchant();result=s.orders.slice().reverse();break;
-    case 'saveProduct': {merchant();const p=input;need(typeof p.name==='string'&&p.name.trim().length>0&&p.name.length<=80,'PRODUCT_NAME');need(['主粮','零食','玩具','清洁','用品'].includes(p.category),'CATEGORY');need(Array.isArray(p.skus)&&p.skus.length>0&&p.skus.length<=20,'INVALID_SKUS');const ids=new Set();const skus=p.skus.map(k=>{need(typeof k.id==='string'&&/^[\w-]{1,60}$/.test(k.id)&&!ids.has(k.id),'SKU_ID');ids.add(k.id);need(typeof k.name==='string'&&k.name.length>0&&k.name.length<=80,'SKU_NAME');need(Number.isSafeInteger(k.price)&&k.price>0&&k.price<=10000000,'INVALID_PRICE');need(Number.isSafeInteger(k.stock)&&k.stock>=0&&k.stock<=100000,'INVALID_STOCK');return {id:k.id,name:k.name,price:k.price,stock:k.stock};});const old=s.products.find(x=>x.id===p.id);if(p.id)need(old,'PRODUCT_NOT_FOUND');if(old)for(const o of s.orders.filter(o=>!o.released&&!['REFUNDED','COMPLETED'].includes(o.status)))for(const l of o.lines.filter(l=>l.productId===old.id))need(ids.has(l.skuId),'RESERVED_SKU_CANNOT_REMOVE');let image=validImage(String(p.image||''),options.mock);const rawImages=p.images===undefined?(image?[image]:[]):p.images;need(Array.isArray(rawImages)&&rawImages.length<=6&&rawImages.every(x=>typeof x==='string'&&x.length>0),'商品图片最多 6 张');const images=[...new Set(rawImages.map(x=>validImage(x,options.mock)))];if(images.length)image=images[0];const petScope=p.petScope||studio.petOf(old||p);need(studio.pets.includes(petScope),'请选择适用宠物');need(typeof (p.pickNote||'')==='string'&&(p.pickNote||'').length<=80,'推荐语最多 80 字');result={id:old?old.id:'p'+(++s.sequence),name:p.name.trim(),category:p.category,petScope,featured:p.featured===undefined?studio.featuredOf(old||p):p.featured===true,pickNote:p.pickNote||'',description:String(p.description||'').slice(0,2000),image,images,active:p.active===true,skus};if(old)s.products[s.products.indexOf(old)]=result;else {need(s.products.length<100,'DEV_CAPACITY_LIMIT');s.products.push(result);}break;}
+    case 'saveProduct': {merchant();const p=input;need(typeof p.name==='string'&&p.name.trim().length>0&&p.name.length<=80,'PRODUCT_NAME');need(['主粮','零食','玩具','清洁','用品'].includes(p.category),'CATEGORY');need(Array.isArray(p.skus)&&p.skus.length>0&&p.skus.length<=20,'INVALID_SKUS');const ids=new Set();const skus=p.skus.map(k=>{need(typeof k.id==='string'&&/^[\w-]{1,60}$/.test(k.id)&&!ids.has(k.id),'SKU_ID');ids.add(k.id);need(typeof k.name==='string'&&k.name.length>0&&k.name.length<=80,'SKU_NAME');need(Number.isSafeInteger(k.price)&&k.price>0&&k.price<=10000000,'INVALID_PRICE');need(Number.isSafeInteger(k.stock)&&k.stock>=0&&k.stock<=100000,'INVALID_STOCK');return {id:k.id,name:k.name,price:k.price,stock:k.stock};});const old=s.products.find(x=>x.id===p.id);if(p.id)need(old,'PRODUCT_NOT_FOUND');if(old)need(Number.isSafeInteger(p.revision)&&p.revision===(old.revision??0),'PRODUCT_REVISION_CONFLICT');if(old)for(const o of s.orders.filter(o=>!o.released&&!['REFUNDED','COMPLETED'].includes(o.status)))for(const l of o.lines.filter(l=>l.productId===old.id))need(ids.has(l.skuId),'RESERVED_SKU_CANNOT_REMOVE');if(old)for(const sku of skus){const reserved=reservedStock(s,old.id,sku.id);need(sku.stock+reserved<=100000,'库存加待释放预留数量不能超过 100000');}let image=validImage(String(p.image||''),options.mock);const rawImages=p.images===undefined?(image?[image]:[]):p.images;need(Array.isArray(rawImages)&&rawImages.length<=6&&rawImages.every(x=>typeof x==='string'&&x.length>0),'商品图片最多 6 张');const images=[...new Set(rawImages.map(x=>validImage(x,options.mock)))];if(images.length)image=images[0];const petScope=p.petScope||studio.petOf(old||p);need(studio.pets.includes(petScope),'请选择适用宠物');need(typeof (p.pickNote||'')==='string'&&(p.pickNote||'').length<=80,'推荐语最多 80 字');result={id:old?old.id:'p'+(++s.sequence),revision:old?(old.revision??0)+1:0,name:p.name.trim(),category:p.category,petScope,featured:p.featured===undefined?studio.featuredOf(old||p):p.featured===true,pickNote:p.pickNote||'',description:String(p.description||'').slice(0,2000),image,images,active:p.active===true,skus};if(old)s.products[s.products.indexOf(old)]=result;else {need(s.products.length<100,'DEV_CAPACITY_LIMIT');s.products.push(result);}break;}
     case 'pickupReady': {merchant();const o=owned();need(o.fulfillment?.type==='PICKUP','仅自提订单可以备货');need(o.status==='PAID','INVALID_STATE');if(!o.fulfillment.readyAt)o.fulfillment.readyAt=now;o.updatedAt=now;result=o;break;}
     case 'pickupRedeem': {merchant();const o=owned();need(o.fulfillment?.type==='PICKUP','仅自提订单可以核销');need(input.code===o.fulfillment.code,'提货码不正确，请核对买家出示的号码');if(o.status==='COMPLETED'){result=o;break;}need(o.status==='PAID'&&o.fulfillment.readyAt,'请先完成备货');o.fulfillment.redeemedAt=now;o.status='COMPLETED';o.updatedAt=now;result=o;break;}
     case 'ship': {merchant();const o=owned();need(o.fulfillment?.type!=='PICKUP','自提订单请使用到店核销');const number=String(input.number||'').trim(),note=String(input.note||'').trim();need(!number||/^[A-Za-z0-9-]{3,40}$/.test(number),'配送单号请填写 3～40 位字母、数字或横线');need(note.length<=200,'配送备注最多 200 字');need(number||note,'请填写配送单号或配送备注');if(o.status==='SHIPPED'){need(o.shipping.number===number&&(o.shipping.note||'')===note,'配送信息已提交，请勿重复覆盖');result=o;break;}need(o.status==='PAID','INVALID_STATE');o.shipping={company:'商家自行配送',number,note,at:now};o.status='SHIPPED';o.updatedAt=now;result=o;break;}
     case 'expire':merchant();result={ok:true};break;
     default:fail('UNKNOWN_ACTION');
   }
+  if(mutationKey)s.keys[mutationKey]={fingerprint:mutationFingerprint,result:clone(result)};
   return {state:s,result:clone(result)};
 }
 module.exports={seed,execute,expire,settleVerifiedPayment,orderQuery,orderPage};
