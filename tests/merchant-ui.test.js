@@ -281,6 +281,20 @@ function fillSettings(f){
   for(let i=1;i<=7;i++)f.node('setting-day-'+i).checked=s.hours.days.includes(i);
 }
 
+test('订单详情仅在待付款状态提示自动关闭，付款后不再显示',async()=>{
+ const f=fixture();const order=f.buyer('createOrder',{key:'payment-caption',fulfillment:'PICKUP',contact:{name:'模拟',phone:'13800000000'},lines:[{productId:'toy',skuId:'toy-1',qty:1}]});
+ await f.run("viewOrder('"+order.id+"')");assert.match(f.node('modal').innerHTML,/未付款订单 15 分钟自动关闭/);
+ f.buyer('mockPay',{id:order.id});await f.run("viewOrder('"+order.id+"')");assert.doesNotMatch(f.node('modal').innerHTML,/未付款订单 15 分钟自动关闭/);
+});
+
+test('全天营业停用时段输入，切回定时营业保留原时段',async()=>{
+ const f=fixture();await f.run("show('settings')");f.run('editShopSettings()');fillSettings(f);
+ f.node('setting-open').value='09:30';f.node('setting-close').value='21:00';f.node('setting-allday').checked=true;f.run('syncSettingsHours()');
+ assert.equal(f.node('setting-open').disabled,true);assert.equal(f.node('setting-close').disabled,true);
+ f.node('setting-allday').checked=false;f.run('syncSettingsHours()');assert.equal(f.node('setting-open').disabled,false);
+ assert.equal(f.run('settingsPayload()').hours.open,'09:30');assert.equal(f.run('settingsPayload()').hours.close,'21:00');
+});
+
 test('商家旧编辑页遭遇下单后保存，提示冲突并保留草稿，库存不回升',async()=>{
  const f=fixture();await f.run("show('products')");f.run("editor('food')");fillEditor(f,{pname:'保留的编辑名称'});
  f.buyer('createOrder',{key:'editing-inventory',fulfillment:'PICKUP',contact:{name:'模拟',phone:'13800000000'},lines:[{productId:'food',skuId:'food-1',qty:1}]});
