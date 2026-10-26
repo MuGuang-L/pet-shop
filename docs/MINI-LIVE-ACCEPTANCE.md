@@ -36,7 +36,7 @@
 
 ## 未覆盖事项
 
-本轮不替代真机网络切换、异机备份及主机重启恢复验收。登录保护和完整图片解码已在后续 [共享服务重启验收](RESTART-LIVE-ACCEPTANCE.md) 中确认生效；图片失败路径见 [图片验收](IMAGE-UPLOAD-ACCEPTANCE.md)。当前全部使用模拟信息，受管启动切换尚未完成。剩余项目持续记录在 [上线前验收](PRELAUNCH-ACCEPTANCE.md)。
+本轮不替代真机网络切换、异机备份及主机重启恢复验收。登录保护和完整图片解码已在后续 [共享服务重启验收](RESTART-LIVE-ACCEPTANCE.md) 中确认生效；图片失败路径见 [图片验收](IMAGE-UPLOAD-ACCEPTANCE.md)。当前全部使用模拟信息；后续已完成受管切换、登录任务登记和进程退出恢复实测，见 [运行说明](RUNTIME-RECOVERY.md)。剩余项目持续记录在 [上线前验收](PRELAUNCH-ACCEPTANCE.md)。
 
 ## 重启后的购物车与地址页面补充
 
