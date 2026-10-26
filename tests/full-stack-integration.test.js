@@ -70,15 +70,15 @@ test('三方联调：商家模板建品与设置 → 小程序外送付款 → �
  f.page.detail(event({id:product.id}));f.page.buy();assert.equal(f.page.data.checkoutTotal,'26.50');f.page.checkout();await idle(f.page);
  const id=f.page.data.selectedOrder?.id;assert.ok(id);assert.equal(f.page.data.selectedOrder.total,2650);
  f.page.action(event({action:'mockPay'}));await idle(f.page);assert.equal(f.page.data.selectedOrder.status,'PAID');
- await f.m(`viewOrder(${JSON.stringify(id)})`);f.node('number').value='LOCAL-DELIVERY-01';f.node('delivery-note').value='模拟店员配送';await f.m('ship()');
- f.page.refreshOrder();await idle(f.page);assert.equal(f.page.data.selectedOrder.shipping.number,'LOCAL-DELIVERY-01');assert.equal(f.page.data.selectedOrder.status,'SHIPPED');
+ f.page.onHide();await f.m(`viewOrder(${JSON.stringify(id)})`);f.node('number').value='LOCAL-DELIVERY-01';f.node('delivery-note').value='模拟店员配送';await f.m('ship()');
+ f.page.onShow();await idle(f.page);assert.equal(f.page.data.selectedOrder.shipping.number,'LOCAL-DELIVERY-01');assert.equal(f.page.data.selectedOrder.status,'SHIPPED');assert.equal(f.page.data.orders.find(o=>o.id===id).status,'SHIPPED');
  f.page.action(event({action:'confirmReceipt'}));await idle(f.page);assert.equal(f.page.data.selectedOrder.status,'COMPLETED');
  f.page.setData({afterForm:{type:'RETURN_REFUND',reason:'隔离测试退货'}});f.page.action(event({action:'refundRequest'}));await idle(f.page);
  await f.m(`viewOrder(${JSON.stringify(id)})`);f.node('after-review-note').value='同意模拟退货';f.node('return-name').value='测试收件人';f.node('return-phone').value='13800000000';f.node('return-address').value='隔离联调退货处 2 号';await f.m('reviewAftersale(true)');
  f.page.refreshOrder();await idle(f.page);assert.equal(f.page.data.selectedOrder.refund.stage,'WAIT_RETURN');
  f.page.setData({'afterForm.company':'模拟退回','afterForm.number':'RETURN-LOCAL-01'});f.page.action(event({action:'returnShip'}));await idle(f.page);
  await f.m(`viewOrder(${JSON.stringify(id)})`);f.node('received-0').value='1';f.node('restock-0').value='1';f.node('inspection-note').value='模拟验收可售';f.node('inspection-confirm').checked=true;await f.m('inspectReturn()');await f.m("orderAction('mockRefund')");
- f.page.refreshOrder();await idle(f.page);assert.equal(f.page.data.selectedOrder.status,'REFUNDED');
+ f.page.onPullDownRefresh();await idle(f.page);assert.equal(f.page.data.selectedOrder.status,'REFUNDED');assert.equal(f.page.data.orders.find(o=>o.id===id).status,'REFUNDED');
  const snapshot=await f.store.snapshot();assert.equal(snapshot.products.find(p=>p.id===product.id).skus[0].stock,5);assert.equal(snapshot.stockMovements.filter(r=>r.type==='RETURN_INSPECTION').length,1);assert.equal(snapshot.orders.length,1);assert.deepEqual(f.errors,[]);
  await f.m(`api('merchantProducts').then(ps=>api('saveProduct',{...ps.find(p=>p.id===${JSON.stringify(product.id)}),active:false}))`);await f.page.refresh();assert.ok(!f.page.data.products.some(p=>p.id===product.id));
 }));

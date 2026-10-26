@@ -17,14 +17,20 @@ Page({
  toggleDataNotice(){this.setData({dataNoticeOpen:!this.data.dataNoticeOpen});},
  navigate(values){this.setData(values,()=>wx.pageScrollTo({scrollTop:0,duration:0}));},
  onLoad(){this.startCountdown();if(api.getSupport)this.setData({support:api.getSupport()});this.setData({cart:wx.getStorageSync('pet-cart')||[]});if(api.hasSession())this.run(async()=>{await this.refresh();await this.recoverCheckout();});else this.setData({loginRequired:true});},
- onShow(){this.startCountdown();if(this.loaded&&api.hasSession())this.run(()=>this.refresh());},
+ onShow(){if(api.hasSession())this.run(()=>this.refreshView());this.startCountdown();},
  onHide(){this.stopCountdown();},
  onUnload(){this.stopCountdown();},
  stopCountdown(){if(this.countdownTimer){clearInterval(this.countdownTimer);this.countdownTimer=null;}},
  startCountdown(){this.stopCountdown();this.tickCountdown();this.countdownTimer=setInterval(()=>this.tickCountdown(),1000);},
  tickCountdown(now=Date.now()){const updates={};const selected=this.data.selectedOrder;if(selected?.status==='PENDING'){Object.assign(updates,{'selectedOrder.remainingText':paymentClock(selected,now).remainingText,'selectedOrder.payExpired':paymentClock(selected,now).payExpired});if(paymentClock(selected,now).payExpired&&!this.data.busy&&this.expirySyncId!==selected.id){this.expirySyncId=selected.id;this.refreshOrder();}}if(this.data.tab==='orders')this.data.orders.forEach((o,i)=>{if(o.status==='PENDING'){const clock=paymentClock(o,now);updates['orders['+i+'].remainingText']=clock.remainingText;updates['orders['+i+'].payExpired']=clock.payExpired;}});if(Object.keys(updates).length)this.setData(updates);},
- onPullDownRefresh(){if(this.data.busy){wx.stopPullDownRefresh();return;}this.run(async()=>{try{await this.refresh();if(this.data.tab==='orders')await this.loadOrderPage();}finally{wx.stopPullDownRefresh();}});},
- retry(){this.run(()=>this.refresh());},
+ onPullDownRefresh(){if(this.data.busy){wx.stopPullDownRefresh();return;}this.run(async()=>{try{await this.refreshView();}finally{wx.stopPullDownRefresh();}});},
+ retry(){this.run(()=>this.refreshView());},
+ async refreshView(){
+  await this.refresh();
+  if(this.data.loginRequired)return;
+  if(this.data.selectedOrder)await this.loadSelectedOrder();
+  if(this.data.tab==='orders')await this.loadOrderPage();
+ },
  loginField(e){this.setData({['loginForm.'+e.currentTarget.dataset.key]:e.detail.value});},
  resetBuyerState(){
   // Clear account-owned views and drafts, but keep persisted checkout recovery
@@ -127,7 +133,13 @@ Page({
  copySupport(){if(this.data.support.phone)wx.setClipboardData({data:this.data.support.phone});},
  copyOrderNumber(){if(this.data.selectedOrder)wx.setClipboardData({data:this.data.selectedOrder.id});},
  copyTracking(){const number=this.data.selectedOrder?.shipping?.number;if(number)wx.setClipboardData({data:number});},
- refreshOrder(){this.run(async()=>{const o=await api.call('order',{id:this.data.selectedOrder.id});this.setData({selectedOrder:order(o),tracking:null});});},
+ async loadSelectedOrder(){
+  const id=this.data.selectedOrder?.id;if(!id)return;
+  const o=await api.call('order',{id});
+  if(this.data.selectedOrder?.id!==id)return;
+  this.setData({selectedOrder:order(o),tracking:null});
+ },
+ refreshOrder(){this.run(()=>this.loadSelectedOrder());},
  action(e){const action=e.currentTarget.dataset.action;this.run(async()=>{const prompts={mockPay:['模拟付款','仅模拟支付，不会产生真实扣款。是否继续？'],cancel:['取消订单','确认取消未付款订单并释放库存？'],confirmReceipt:['确认收货','请确认商品已送到并核对无误，再确认收货。'],refundWithdraw:['撤回售后','确认撤回当前售后申请？'],returnShip:['提交退货物流','请核对退货运单，提交后将锁定。是否继续？']};if(prompts[action]&&!await this.confirm(...prompts[action]))return;if(['mockPay','payment'].includes(action)&&paymentClock(this.data.selectedOrder).payExpired){const fresh=await api.call('order',{id:this.data.selectedOrder.id});this.setData({selectedOrder:order(fresh)});throw Error('付款截止时间已到，请核对最新订单状态');}if(!['mockPay','payment','cancel','confirmReceipt','refundRequest','refundWithdraw','returnShip'].includes(action))throw Error('此操作请在商家网页处理');const f=this.data.afterForm||{},input={id:this.data.selectedOrder.id,caseId:this.data.selectedOrder.refund?.caseId};if(action==='refundRequest')Object.assign(input,{reason:f.reason,type:f.type});if(action==='returnShip')Object.assign(input,{company:f.company,number:f.number});const o=await api.call(action,input);this.setData({selectedOrder:order(o)});if(this.data.tab==='orders')await this.loadOrderPage();});},
  tracking(){this.run(async()=>this.setData({tracking:await api.call('tracking',{id:this.data.selectedOrder.id}).then(t=>({...t,events:(t.events||[]).map(e=>({...e,timeText:formatTime(e.time),nextTimeText:e.nextAt?formatTime(e.nextAt):''}))}))}));},
 });
