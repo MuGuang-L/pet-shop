@@ -10,10 +10,10 @@ function fixture(){let state=domain.seed(),page;const calls=[],errors=[],confirm
 }
 async function idle(page){for(let i=0;i<100&&page.data.busy;i++)await new Promise(r=>setImmediate(r));assert.equal(page.data.busy,false);}
 test('小程序读取动态外送费和门店地址，服务端报价确认后下单',async()=>{
- const f=fixture();f.save(s=>{s.delivery.fee=650;s.store.detail='模拟市新地址 88 号';});
+ const f=fixture();f.save(s=>{s.delivery.fee=650;s.delivery.minimum=1000;s.delivery.freeAbove=5000;s.pickup.instructions='请到二楼服务台提货';s.store.detail='模拟市新地址 88 号';});
  await f.call('saveAddress',{name:'模拟',phone:'13800000000',detail:'模拟市收货路 1 号'});await f.page.refresh();
  f.page.setData({cart:[{productId:'toy',skuId:'toy-1',qty:1,price:1900}]});f.page.cartTotal();
- assert.equal(f.page.data.shippingEstimate,'6.50');assert.equal(f.page.data.pickupStore.detail,'模拟市新地址 88 号');
+ assert.equal(f.page.data.shippingEstimate,'6.50');assert.equal(f.page.data.pickupStore.detail,'模拟市新地址 88 号');assert.equal(f.page.data.storeGuide.fee,'6.50');assert.equal(f.page.data.storeGuide.minimum,'10.00');assert.equal(f.page.data.storeGuide.freeAbove,'50.00');assert.equal(f.page.data.shopSettings.pickup.instructions,'请到二楼服务台提货');
  f.page.checkout();await idle(f.page);assert.match(f.confirms[0],/25.50/);assert.equal(f.page.data.selectedOrder.total,2550);assert.equal(f.calls.find(c=>c.action==='createOrder').input.settingsRevision,1);assert.deepEqual(f.errors,[]);
 });
 test('小程序取消确认不下单，网络失败重试复用原报价和幂等键',async()=>{
@@ -45,7 +45,7 @@ test('只按勾选商品核算免外送费门槛，商家关闭外送后切换�
  const f=fixture();f.save(s=>{s.delivery.fee=650;s.delivery.freeAbove=3000;});await f.page.refresh();
  f.page.setData({cart:[{productId:'toy',skuId:'toy-1',qty:1},{productId:'food',skuId:'food-1',qty:2,selected:false}]});f.page.cartTotal();assert.equal(f.page.data.shippingEstimate,'6.50');
  f.page.setData({cart:[{productId:'toy',skuId:'toy-1',qty:2}]});f.page.cartTotal();assert.equal(f.page.data.shippingEstimate,'0.00');
- f.save(s=>{s.delivery.enabled=false;});await f.page.refresh();assert.equal(f.page.data.deliveryMode,'PICKUP');assert.equal(f.page.data.deliveryEnabled,false);
+ f.save(s=>{s.delivery.enabled=false;s.delivery.freeAbove=null;});await f.page.refresh();assert.equal(f.page.data.deliveryMode,'PICKUP');assert.equal(f.page.data.deliveryEnabled,false);assert.equal(f.page.data.shopSettings.delivery.enabled,false);assert.equal(f.page.data.storeGuide.freeAbove,null);
  f.page.deliveryMode({currentTarget:{dataset:{value:'DELIVERY'}}});assert.equal(f.page.data.deliveryMode,'PICKUP');
 });
 
