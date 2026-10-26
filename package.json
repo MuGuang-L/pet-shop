@@ -14,7 +14,11 @@
     "setup:accounts": "node scripts/setup-accounts.js",
     "export:buyer": "node scripts/export-buyer.js",
     "db:verify": "node scripts/mongo-backup.js verify",
-    "db:backup-status": "node scripts/mongo-backup.js status"
+    "db:backup-status": "node scripts/mongo-backup.js status",
+    "service:start": "node scripts/service-runtime.js start",
+    "service:stop": "node scripts/service-runtime.js stop",
+    "service:status": "node scripts/service-runtime.js status",
+    "service:check": "node scripts/service-runtime.js check"
   },
   "engines": {
     "node": ">=20.19"

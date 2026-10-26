@@ -88,6 +88,7 @@ npm.cmd test
 - [缺货、外送失败与自提延期](docs/FULFILLMENT-ISSUES.md)
 - [备份与恢复](docs/BACKUP-RECOVERY.md)
 - [数据库事务与历史数据增长](docs/DATABASE-SCALE.md)
+- [服务启动与恢复](docs/RUNTIME-RECOVERY.md)
 - [上线前验收清单](docs/PRELAUNCH-ACCEPTANCE.md)
 - [上游兼容性](UPSTREAM-COMPATIBILITY.md)
 - [第三方说明](THIRD_PARTY_NOTICES.md)

@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "publicOrigin": "",
+  "manageMongo": true,
+  "natapp": {
+    "enabled": false,
+    "binary": ".local/natapp/client/natapp.exe",
+    "config": ".local/natapp/config.ini"
+  }
+}

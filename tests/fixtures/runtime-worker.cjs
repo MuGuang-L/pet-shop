@@ -1,0 +1,10 @@
+'use strict';
+const fs=require('node:fs'),path=require('node:path');
+const directory=process.argv[2],marker=path.join(directory,'attempt');
+const count=fs.existsSync(marker)?Number(fs.readFileSync(marker,'utf8'))+1:1;
+fs.writeFileSync(marker,String(count));
+if(count===1)process.exit(17);
+fs.writeFileSync(path.join(directory,'ready'),'ready');
+const timer=setInterval(()=>{},1000);
+const stop=()=>{clearInterval(timer);process.exit(0);};
+process.on('message',m=>{if(m?.type==='stop')stop();});process.on('disconnect',stop);

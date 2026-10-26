@@ -37,8 +37,9 @@ async function start({connect=()=>MongoStore.connect(),port=4173,host='127.0.0.1
  logger.log('Shop HTTP service listening; database readiness is reported by /health.');
  return {server,stop};
 }
-if(require.main===module)start({backupOptions:{intervalMs:Number(process.env.BACKUP_INTERVAL_HOURS||24)*3600000,keep:Number(process.env.BACKUP_KEEP||14),minAgeDays:Number(process.env.BACKUP_MIN_AGE_DAYS||7)}}).then(({stop})=>{
- const shutdown=()=>{stop().then(()=>process.exit(0),()=>process.exit(1));};
- process.once('SIGINT',shutdown);process.once('SIGTERM',shutdown);
-}).catch(e=>{console.error('Shop startup failed:',e.name);process.exitCode=1;});
+if(require.main===module){
+ const ready=start({backupOptions:{intervalMs:Number(process.env.BACKUP_INTERVAL_HOURS||24)*3600000,keep:Number(process.env.BACKUP_KEEP||14),minAgeDays:Number(process.env.BACKUP_MIN_AGE_DAYS||7)}});
+ require('./process-lifecycle').attachShutdown(async()=>{const service=await ready.catch(()=>null);if(service)await service.stop();});
+ ready.catch(e=>{console.error('Shop startup failed:',e.name);process.exit(1);});
+}
 module.exports={start};

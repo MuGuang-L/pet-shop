@@ -1,7 +1,8 @@
 'use strict';
 const http=require('node:http'),fs=require('node:fs'),path=require('node:path');const {Auth,authorize}=require('./auth');const uploads=require('./uploads');
 const root=path.join(__dirname,'..');
-function createServer(store,{auth=new Auth(),publicOrigin=process.env.PUBLIC_ORIGIN||'',uploadsDirectory=uploads.directory}={}){
+function createServer(store,{auth=new Auth(),publicOrigin=process.env.PUBLIC_ORIGIN||'',uploadsDirectory=uploads.directory,runtimeId=process.env.SHOP_RUNTIME_ID||''}={}){
+ if(runtimeId&&!/^[a-f0-9-]{36}$/.test(runtimeId))throw Error('INVALID_RUNTIME_ID');
  if(publicOrigin&&(!/^https:\/\/[a-zA-Z0-9.-]+(?::\d+)?$/.test(publicOrigin)))throw Error('PUBLIC_ORIGIN must be an HTTPS origin without path');
  const server=http.createServer(async(req,res)=>{const send=(status,data)=>{if(res.destroyed||res.writableEnded)return;res.writeHead(status,{'Content-Type':'application/json; charset=utf-8'});res.end(JSON.stringify(data));};res.setHeader('Cache-Control','no-store');res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('X-Frame-Options','DENY');res.setHeader('Referrer-Policy','no-referrer');
  const origin=req.headers.origin,allowed=[publicOrigin,'http://127.0.0.1:4173','http://localhost:4173'].filter(Boolean);
@@ -13,7 +14,7 @@ function createServer(store,{auth=new Auth(),publicOrigin=process.env.PUBLIC_ORI
  const file=(target,type)=>{res.setHeader('Content-Type',type);res.end(fs.readFileSync(target));};
  try{
  if(req.method==='GET'){
- if(url==='/health'){await store.db.command({ping:1});return send(200,{ok:true,mode:'simulation',database:'mongodb'});}
+ if(url==='/health'){await store.db.command({ping:1});return send(200,{ok:true,mode:'simulation',database:'mongodb',...(runtimeId?{runtimeId}:{})});}
  if(url==='/'){res.writeHead(302,{Location:'/admin/'});return res.end();}
  if(url==='/admin/'||url==='/admin')return file(path.join(root,'apps/merchant-web/index.html'),'text/html; charset=utf-8');
  if(['/admin/settings.js','/admin/app.js','/admin/app.css','/admin/base.css'].includes(url))return file(path.join(root,'apps/merchant-web',path.basename(url)),url.endsWith('.css')?'text/css; charset=utf-8':'text/javascript; charset=utf-8');
