@@ -12,7 +12,7 @@ async function idle(page){for(let i=0;i<500&&page.data.busy;i++)await new Promis
 async function fixture(run){
  const database='pet_shop_test_fullstack_'+Date.now()+'_'+Math.random().toString(36).slice(2);
  const store=await MongoStore.connect({database});
- const auth=new Auth([createAccount('buyer','integration-password','buyer','integration-buyer'),createAccount('merchant','integration-password','merchant','integration-merchant')]);
+ const auth=new Auth([createAccount('buyer','integration-password','buyer','integration-buyer'),createAccount('buyer-b','integration-password','buyer','integration-buyer-b'),createAccount('merchant','integration-password','merchant','integration-merchant')]);
  const server=createServer(store,{auth});await new Promise(r=>server.listen(0,'127.0.0.1',r));
  const base='http://127.0.0.1:'+server.address().port;
  const raw=async(path,body,headers={})=>fetch(base+path,{method:'POST',headers:{'Content-Type':'application/json',...headers},body:JSON.stringify(body)});
@@ -24,7 +24,7 @@ async function fixture(run){
  vm.runInContext(source('apps/merchant-web/settings.js'),merchant);
  const m=code=>vm.runInContext(code,merchant);
  const storage={},errors=[],calls=[];let dropCreate=false,page;
- const wx={getStorageSync:key=>clone(storage[key]),setStorageSync:(key,value)=>storage[key]=clone(value),removeStorageSync:key=>delete storage[key],showToast(){},showModal(o){if(o.showCancel===false)errors.push(o.content);else o.success?.({confirm:true});},stopPullDownRefresh(){},request(o){
+ const wx={getStorageSync:key=>clone(storage[key]),setStorageSync:(key,value)=>storage[key]=clone(value),removeStorageSync:key=>delete storage[key],showToast(){},showModal(o){if(o.showCancel===false)errors.push(o.content);else o.success?.({confirm:wx.confirm!==false});},stopPullDownRefresh(){},request(o){
   calls.push(clone(o.data));raw(new URL(o.url).pathname,o.data,o.header).then(async r=>{const data=await r.json();if(dropCreate&&o.data.action==='createOrder'&&data.ok){dropCreate=false;o.fail({errMsg:'lost response'});return;}o.success({statusCode:r.status,data});}).catch(()=>o.fail({errMsg:'network error'}));
  }};
  const apiContext={wx,module:{exports:{}},require:()=>({apiBase:'http://127.0.0.1:4173'}),setTimeout};vm.runInNewContext(source('miniprogram/services/api'),apiContext);const api=apiContext.module.exports;
@@ -35,6 +35,27 @@ async function fixture(run){
  finally{await new Promise(r=>server.close(r));assert.ok(database.startsWith('pet_shop_test_fullstack_'));await store.db.dropDatabase();await store.close();}
 }
 const options={skip:process.env.PET_MONGO_TEST!=='1'};
+
+test('三方联调：下单丢响应后切换买家，恢复原账号只确认原订单且不泄露个人信息',options,async()=>fixture(async f=>{
+ const p=f.page;p.setData({deliveryMode:'PICKUP',pickupContact:{name:'账号甲提货人',phone:'13800000000'}});p.detail(event({id:'toy'}));p.buy();f.drop();p.checkout();await idle(p);
+ const state=await f.store.snapshot(),original=state.orders[0],scopeA=f.api.checkoutScope();assert.equal(state.orders.length,1);assert.ok(f.storage[scopeA]);
+ p.setData({selectedOrder:{...original},orders:[{...original}],addressForm:{name:'账号甲地址草稿'},addressEditing:true,afterForm:{reason:'账号甲售后草稿'},loginForm:{username:'buyer-b',password:'integration-password'}});p.login();await idle(p);
+ assert.notEqual(f.api.checkoutScope(),scopeA);assert.ok(f.storage[scopeA]);assert.equal(p.data.selectedOrder,null);assert.equal(p.data.orders.length,0);assert.equal(p.data.addressEditing,false);assert.equal(Object.keys(p.data.addressForm).length,0);assert.equal(Object.keys(p.data.afterForm).length,0);assert.equal(p.data.pickupContact.name,'');assert.equal(p.data.pickupContact.phone,'');assert.equal(f.calls.filter(c=>c.action==='createOrder').length,1);
+ await assert.rejects(f.api.call('order',{id:original.id}),e=>e.code==='FORBIDDEN');assert.equal((await f.api.call('ordersPage')).total,0);
+ p.logout();await idle(p);assert.equal(f.api.hasSession(),false);assert.equal(p.data.loginRequired,true);assert.ok(f.storage[scopeA]);
+ p.setData({loginForm:{username:'buyer',password:'integration-password'}});p.login();await idle(p);assert.equal(p.data.selectedOrder.id,original.id);assert.equal(f.storage[scopeA],null);
+ const creates=f.calls.filter(c=>c.action==='createOrder');assert.equal(creates.length,2);assert.equal(creates[0].input.key,creates[1].input.key);const after=await f.store.snapshot();assert.equal(after.orders.length,1);assert.equal(after.products.find(x=>x.id==='toy').skus[0].stock,29);assert.equal(after.orders[0].address.name,'账号甲提货人');
+}));
+
+test('三方联调：地址编辑和删除不改历史订单，取消删除不请求服务，已删地址不能再下单',options,async()=>fixture(async f=>{
+ const p=f.page;p.newAddress();p.setData({'addressForm.name':'模拟地址验收','addressForm.phone':'13800000000','addressForm.detail':'模拟收货地址 1 号'});p.saveAddress();await idle(p);const address=p.data.addresses[0];assert.ok(address);
+ const original=await f.api.call('createOrder',{key:'address-lifecycle-order',fulfillment:'DELIVERY',addressId:address.id,lines:[{productId:'toy',skuId:'toy-1',qty:1}]});
+ p.editAddress(event({i:0}));p.setData({'addressForm.detail':'模拟收货地址 2 号'});p.saveAddress();await idle(p);assert.equal(p.data.addresses[0].detail,'模拟收货地址 2 号');assert.equal((await f.api.call('order',{id:original.id})).address.detail,'模拟收货地址 1 号');
+ f.wx.confirm=false;const before=f.calls.length;p.deleteAddress(event({id:address.id}));await idle(p);assert.equal(f.calls.length,before);assert.equal((await f.api.call('addresses')).length,1);
+ f.wx.confirm=true;p.deleteAddress(event({id:address.id}));await idle(p);assert.equal(p.data.addresses.length,0);assert.equal(p.data.selectedAddress,null);assert.equal((await f.api.call('addresses')).length,0);
+ assert.equal((await f.api.call('order',{id:original.id})).address.detail,'模拟收货地址 1 号');await assert.rejects(f.api.call('createOrder',{key:'deleted-address-order',fulfillment:'DELIVERY',addressId:address.id,lines:[{productId:'toy',skuId:'toy-1',qty:1}]}),e=>e.code==='ADDRESS_REQUIRED');
+ const after=await f.store.snapshot();assert.equal(after.orders.length,1);assert.equal(after.products.find(x=>x.id==='toy').skus[0].stock,29);assert.deepEqual(f.errors,[]);
+}));
 test('三方联调：商家模板建品与设置 → 小程序外送付款 → 商家送出 → 收货退货入库退款',options,async()=>fixture(async f=>{
  await f.m("show('products');");f.m("editor(null,'toy')");
  const draft=JSON.parse(f.m('JSON.stringify(editing)'));
