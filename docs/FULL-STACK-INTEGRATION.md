@@ -22,14 +22,14 @@
 
 ## 运行与接入
 
-小程序侧 → HTTPS API → MongoDB；商家 Web → 同一个 API → 同一个 MongoDB。
+小程序侧 → HTTP API → MongoDB；商家 Web → 同一个 API → 同一个 MongoDB。本地默认使用回环 HTTP，跨电脑使用另行配置的 HTTPS 服务。
 
-- 小程序 API：`https://petshop-dev19732.nat100.top`
-- 商家 Web：`https://petshop-dev19732.nat100.top/admin/`
+- 小程序 API：`http://127.0.0.1:4173`
+- 商家 Web：`http://127.0.0.1:4173/admin/`
 - 微信开发者工具导入仓库根目录，编译 `miniprogram/`；使用有权限的 AppID 或工具支持的测试模式。
 - 买家账号在小程序登录，商家账号在 Web 登录；使用已有测试账号，凭据通过独立渠道提供。
 - 小程序配置 `apiBase` 不加 `/api`。只运行小程序时不用安装 MongoDB。
-- 运行主机、MongoDB、Node 和 NATAPP 保持在线。数据库端口不通过隧道开放。
+- 本地运行保持 MongoDB 和 Node 在线；远程联调才需要另外配置隧道。数据库端口不通过隧道开放。
 
 新建分支及拉取代码不会更新已运行 Node 的内存代码。2026-10-25 已由服务侧维护者重启 Node，并验证公网健康与真实模拟器下单；MongoDB 与 NATAPP 未重启。后续修改服务代码后仍需重启相应进程，小程序修改后重新编译。不要在运行服务所用的目录随意切回旧分支。
 

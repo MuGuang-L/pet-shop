@@ -16,41 +16,59 @@
 
 `preview/` 和 `tests/fixtures/legacy/` 保留历史实现及回归样本，不作为当前入口。
 
+## 在自己的电脑上运行
+
+仓库默认连接本机，不需要 NATAPP，也不需要其他运行环境的账号、数据库或上传文件。使用 [Node.js 22](https://nodejs.org/en/download) 和 Git，在准备存放项目的目录执行：
+
+```sh
+git clone --branch integration/full-stack https://github.com/MuGuang-L/pet-shop.git
+cd pet-shop
+npm ci
+npm run setup
+npm run service:start
+```
+
+私有仓库需要先接受协作邀请，并使用自己的 GitHub 身份克隆。Windows 若提示 npm.ps1 无法执行，将 `npm` 换为 `npm.cmd`。
+
+`setup` 为本机生成连接配置、开发工具项目配置、服务管理配置和随机测试账号。重复执行会保留已有文件，不重置账号或数据。默认配置如下：
+
+| 内容 | 本机默认值 |
+| --- | --- |
+| 商家 Web | `http://127.0.0.1:4173/admin/` |
+| 小程序 API | `http://127.0.0.1:4173` |
+| MongoDB | `mongodb://127.0.0.1:27018/?replicaSet=petshop` |
+| 数据库名称 | `pet_shop_demo` |
+| 小程序连接配置 | `miniprogram/config.local.js`，不提交 Git |
+| 开发工具配置 | `project.config.json`，不提交 Git；模板使用测试 AppID |
+| 测试账号 | `.local/auth/credentials.txt`；merchant 登录商家 Web，buyer 登录小程序 |
+
+`service:start` 在当前终端启动数据库和 Node 服务，持续监测并恢复子进程。首次运行会下载官方 MongoDB 8.0.16 二进制，启动单节点副本集；不需要单独安装 MongoDB，也不是内存数据库。下载需要网络，数据保存在 `.local/mongodb/data/`，退出或重启后保留。默认不启动任何隧道。请等服务就绪再登录，在另一个终端检查：
+
+```sh
+npm run service:status
+```
+
+database 和 backend 均为 healthy 后，打开商家 Web；`http://127.0.0.1:4173/health` 也应返回 `ok: true` 和 `database: mongodb`。首次连接空库时，服务自动创建集合、索引和模拟商品；以后启动不会覆盖已有商品、订单或库存。每台电脑的数据各自独立，`git pull` 不同步数据库。
+
+停止使用 `npm run service:stop`，再次启动仍用 `npm run service:start`。不要同时再运行 `npm start` 或 `npm run db:start`；端口已占用时脚本会拒绝启动，不会关闭其他进程。现有环境执行 setup 会保留原配置（包括已设置的隧道），不会自动改成本地模式。
+
+手动安装 MongoDB、下载失败处理、环境变量和独立启动方式见 [本地环境配置](docs/LOCAL-DEVELOPMENT.md)。
+
 ## 小程序侧开发
 
-用微信开发者工具导入仓库根目录，选择有权限使用的 AppID 或工具支持的测试模式。`miniprogram/config.js` 中的 `apiBase` 为服务侧 API 根地址，不加 `/api` 后缀。
+完成 `npm ci` 和 `npm run setup` 后，用微信开发者工具导入仓库根目录，选择有权限使用的 AppID 或工具支持的测试模式。AppID 保存在本机 `project.config.json`，不用改公共模板。
 
-连接现有联调服务时，无需安装 MongoDB 或运行服务侧代码。测试账号单独分配，密码在登录页输入，不写入源码。
+在同一台电脑的模拟器中，`miniprogram/config.local.js` 默认地址即可使用。开发工具进行本地 HTTP 联调时，需在本地设置中关闭合法域名校验；这只适用于开发调试，不代表真机或上线域名已配置好。使用本机生成的 buyer 账号登录。首次打开尚未初始化的 checkout 会缺少 config.local 模块，运行 setup 后重新编译即可。
 
-- 联调 API：`https://petshop-dev19732.nat100.top`
-- 商家 Web：`https://petshop-dev19732.nat100.top/admin/`
+只开发小程序侧、连接共享服务时，不需要启动本地 MongoDB。把本机配置里的 `apiBase` 改为服务侧提供的 HTTPS 根地址（不加 `/api`），使用该服务分配的测试账号。仓库不预设任何人的隧道地址。
 
-联调服务依赖运行主机和 NATAPP 持续在线。微信真机及正式环境的域名配置需单独验证。
+真机的 `127.0.0.1` 指手机自身，不能访问电脑上的服务。真机或跨电脑联调需要另行配置可访问的 HTTPS 服务地址及微信域名规则；隧道是可选接入方式，只映射 HTTP 服务，不开放 MongoDB。
 
-## 服务侧开发
+## 登录说明
 
-使用 Node.js 22，在仓库根目录执行：
+当前保留买家和商家两种身份：买家订单、地址按账号隔离，商家才能维护商品、发货、退款和调整库存。测试账号由各自本机生成，密码不写进仓库，也不会复制现有联调环境的密码。
 
-```sh
-npm ci
-npm run setup:accounts
-```
-
-测试账号生成在 `.local/auth/`，已有账号不会覆盖。分别在两个终端启动数据库和服务：
-
-```sh
-npm run db:start
-```
-
-```sh
-npm start
-```
-
-MongoDB 首次启动会下载官方二进制，数据保存到 `.local/mongodb/data/`。本地商家入口为 `http://127.0.0.1:4173/admin/`。独立运行时需将小程序侧 `apiBase` 改为对应接口地址。
-
-使用 HTTPS 隧道时，将环境变量 `PUBLIC_ORIGIN` 设为实际 HTTPS 根地址，再启动后端。此时商家 Web 使用 HTTPS 登录，Cookie 带有 Secure 标记。隧道只映射 HTTP 4173，不映射数据库端口。
-
-Windows 如遇 npm.ps1 执行限制，可使用 `npm.cmd`。
+后续接入真实微信身份后，小程序侧可以免手输账号密码；订单归属校验仍然需要。商家 Web 继续需要登录，私人使用不代表公开网址具有访问限制。当前模拟版本不提供匿名商家入口。
 
 ## 功能范围
 

@@ -1,6 +1,8 @@
 node_modules/
 .env*
 project.private.config.json
+project.config.json
+miniprogram/config.local.js
 *.log
 .local/
 

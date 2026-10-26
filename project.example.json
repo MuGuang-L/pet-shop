@@ -3,7 +3,7 @@
   "miniprogramRoot": "miniprogram/",
   "cloudfunctionRoot": "cloudfunctions/",
   "compileType": "miniprogram",
-  "appid": "wx197c418e2e788980",
+  "appid": "touristappid",
   "projectname": "pet-shop-development",
   "setting": {
     "es6": true,

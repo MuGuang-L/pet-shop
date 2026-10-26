@@ -2,17 +2,19 @@
 
 当前联调分支为 `integration/full-stack`，合并来源、兼容适配与验收步骤见 [三方联调](FULL-STACK-INTEGRATION.md)。
 
+默认独立运行于本机，不需要隧道。连接共享服务时，由服务侧提供 HTTPS 地址，在本机配置中替换；共享环境的账号单独分配。首次导入前运行 `npm run setup`，见 README。
+
 ## 连接关系
 
 小程序侧和服务侧的商家 Web 调用同一个 HTTP API，由服务侧读写 MongoDB。库存、金额、订单状态和权限在服务侧校验。
 
 | 项目 | 配置 |
 | --- | --- |
-| 小程序侧 API 根地址 | `https://petshop-dev19732.nat100.top` |
-| 服务侧商家 Web | `https://petshop-dev19732.nat100.top/admin/` |
+| 小程序侧 API 根地址 | `http://127.0.0.1:4173` |
+| 服务侧商家 Web | `http://127.0.0.1:4173/admin/` |
 | 本地 HTTP 服务 | `127.0.0.1:4173` |
 | 本地 MongoDB | `127.0.0.1:27018`，不通过隧道开放 |
-| 小程序配置文件 | `miniprogram/config.js` |
+| 小程序配置文件 | `miniprogram/config.local.js` |
 
 API 根地址不包含 `/api`。图片和上传文件使用同一域名。
 
@@ -29,7 +31,7 @@ API 根地址不包含 `/api`。图片和上传文件使用同一域名。
 依赖安装、账号初始化和数据库启动见 README。启用公网 HTTPS 前设置后端允许的来源：
 
 ```powershell
-$env:PUBLIC_ORIGIN='https://petshop-dev19732.nat100.top'
+$env:PUBLIC_ORIGIN='https://your-shop.example.com'
 npm.cmd start
 ```
 

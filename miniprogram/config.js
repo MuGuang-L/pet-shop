@@ -1,3 +1,3 @@
-// Only change apiBase when switching from local development to the owner's HTTPS tunnel.
-// Never put database credentials or test passwords in this file.
-module.exports={mode:'api',apiBase:'https://petshop-dev19732.nat100.top',buyerSupport:{name:'联系商家',phone:'',hours:''}};
+// Run npm run setup before importing the project into WeChat Developer Tools.
+// Each checkout has its own ignored connection settings; never store passwords here.
+module.exports=require('./config.local');

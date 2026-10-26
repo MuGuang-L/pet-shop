@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "setup": "node scripts/setup-local.js",
     "test": "node --test tests/*.test.js",
     "start": "node server/index.js",
     "build": "node scripts/build.js",
