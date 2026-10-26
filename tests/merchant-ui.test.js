@@ -118,7 +118,9 @@ test('商品列表转义可编辑内容，搜索和空结果不写数据库', as
 test('已完成及退款自提订单不再提示待核销', () => {
   const f = fixture();
   assert.equal(f.run("orderFulfillmentNote({status:'COMPLETED',fulfillment:{type:'PICKUP',readyAt:1}})"), '已完成到店自提');
-  assert.equal(f.run("orderFulfillmentNote({status:'REFUNDED',fulfillment:{type:'PICKUP',readyAt:1}})"), '到店自提订单');
+  assert.equal(f.run("orderFulfillmentNote({status:'REFUNDED',fulfillment:{type:'PICKUP',readyAt:1}})"), '退款完成，履约已结束');
+  assert.equal(f.run("orderFulfillmentNote({status:'REFUNDED',fulfillment:{type:'DELIVERY'}})"), '退款完成，履约已结束');
+  for(const status of ['CANCELLED','EXPIRED'])assert.equal(f.run(`orderFulfillmentNote({status:'${status}',fulfillment:{type:'DELIVERY'}})`),'订单已关闭，无需履约');
   assert.equal(f.run("orderFulfillmentNote({status:'PAID',fulfillment:{type:'PICKUP',readyAt:1}})"), '已备好，等待到店核销');
 });
 
