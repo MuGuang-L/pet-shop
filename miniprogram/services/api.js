@@ -3,10 +3,12 @@ const config=require('../config');const key='pet-shop-session-v2';
 function base(){const url=(config.apiBase||'http://127.0.0.1:4173').replace(/\/$/,'');if(!/^http:\/\/(127\.0\.0\.1|localhost):4173$/.test(url)&&!/^https:\/\/[a-zA-Z0-9.-]+(?::\d+)?$/.test(url))throw Error('API 地址须为本机 4173 端口或 HTTPS 域名');return url;}
 function session(){const s=wx.getStorageSync(key);return s&&s.apiBase===base()?s:null;}
 function paths(value){if(typeof value==='string')return /^\/(assets|uploads)\//.test(value)?base()+value:value;if(Array.isArray(value))return value.map(paths);if(value&&typeof value==='object')return Object.fromEntries(Object.entries(value).map(([k,v])=>[k,paths(v)]));return value;}
+const loginMessages={INVALID_CREDENTIALS:'账号或密码不正确',LOGIN_RATE_LIMIT:'登录尝试过多，请一分钟后再试',LOGIN_BUSY:'当前登录人数较多，请稍后再试'};
 const readActions=new Set(['catalog','storefront','homeContent','identity','addresses','orders','ordersPage','order','tracking','shopSettings','quoteOrder']);
 function requestOnce(endpoint,data,apiBase,token){
  return new Promise((resolve,reject)=>wx.request({url:apiBase+endpoint,method:'POST',data,header:{'Content-Type':'application/json',...(token?{Authorization:'Bearer '+token}:{})},timeout:15000,
  success:r=>{
+  if(endpoint==='/auth/login'&&[400,429,503].includes(r.statusCode)&&Object.prototype.hasOwnProperty.call(loginMessages,r.data?.error))return reject(Object.assign(Error(loginMessages[r.data.error]),{code:r.data.error,definitive:true}));
   if(r.statusCode===401){if(session()?.token===token)wx.removeStorageSync(key);return reject(Object.assign(Error('AUTH_REQUIRED'),{code:'AUTH_REQUIRED',definitive:false}));}
   if([408,429,500,502,503,504].includes(r.statusCode)||!r.data||typeof r.data.ok!=='boolean')return reject(Object.assign(Error('服务暂时不可用，请稍后重试'),{retryable:true,definitive:false}));
   if(r.statusCode!==200||!r.data.ok){const error=Error(r.data.error==='CREATE_REQUEST_CONFLICT'?'上次地址可能已保存，请先关闭编辑并刷新地址列表核对。':r.data.error||'服务请求失败');error.definitive=r.statusCode===400&&r.data.retryable!==true;return reject(error);}

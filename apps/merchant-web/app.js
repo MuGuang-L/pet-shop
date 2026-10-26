@@ -9,7 +9,7 @@ const homeFields=[['headline','首页大标题',24],['subtitle','首页副标题
 
 // Only repeat reads. An interrupted write may already have committed.
 const readActions=new Set(['stockHistory','catalog','storefront','homeContent','identity','merchantProducts','merchantOrders','merchantOrdersPage','order','tracking','shopSettings','quoteOrder']);
-const requestMessages={STOCK_REQUEST_CONFLICT:'该提交编号已用于另一笔调整，请核对记录后再操作。',INVALID_STOCK_TYPE:'请选择入库、盘点或报损。',INVALID_STOCK_QUANTITY:'数量须为有效整数；盘点可填 0，入库和报损须大于 0。',STOCK_REASON_REQUIRED:'请填写调整原因，最多 200 字。',INSUFFICIENT_AVAILABLE_STOCK:'报损数量超过可售库存，请核对已被订单占用的商品。',STOCK_CAPACITY_EXCEEDED:'可售库存加订单预留数量不能超过 100000 件。',CREATE_REQUEST_CONFLICT:'上次新增可能已保存。请先关闭编辑并刷新商品列表核对，不要改动原请求重复新增。',AUTH_REQUIRED:'请先登录',FORBIDDEN:'此账号没有商家权限',INVALID_CREDENTIALS:'账号或密码不正确',LOGIN_RATE_LIMIT:'尝试过多，请稍后再试',PRODUCT_REVISION_CONFLICT:'商品或库存已变化，本次未保存。请保留需要的编辑内容，重新打开商品后核对库存再保存。',PRODUCT_NAME:'请填写商品名称（最多 80 字）',INVALID_STOCK:'库存须为 0 到 100000 的整数',SKU_NAME:'请填写每个规格的名称',INVALID_PRICE:'请检查售价，金额须大于 0 且最多两位小数',RESERVED_SKU_CANNOT_REMOVE:'该规格仍有未结束订单，请保留原规格',INVALID_STATE:'订单状态已变化，请刷新后重试'};
+const requestMessages={STOCK_REQUEST_CONFLICT:'该提交编号已用于另一笔调整，请核对记录后再操作。',INVALID_STOCK_TYPE:'请选择入库、盘点或报损。',INVALID_STOCK_QUANTITY:'数量须为有效整数；盘点可填 0，入库和报损须大于 0。',STOCK_REASON_REQUIRED:'请填写调整原因，最多 200 字。',INSUFFICIENT_AVAILABLE_STOCK:'报损数量超过可售库存，请核对已被订单占用的商品。',STOCK_CAPACITY_EXCEEDED:'可售库存加订单预留数量不能超过 100000 件。',CREATE_REQUEST_CONFLICT:'上次新增可能已保存。请先关闭编辑并刷新商品列表核对，不要改动原请求重复新增。',AUTH_REQUIRED:'请先登录',FORBIDDEN:'此账号没有商家权限',INVALID_CREDENTIALS:'账号或密码不正确',LOGIN_RATE_LIMIT:'登录尝试过多，请一分钟后再试',LOGIN_BUSY:'当前登录人数较多，请稍后再试',PRODUCT_REVISION_CONFLICT:'商品或库存已变化，本次未保存。请保留需要的编辑内容，重新打开商品后核对库存再保存。',PRODUCT_NAME:'请填写商品名称（最多 80 字）',INVALID_STOCK:'库存须为 0 到 100000 的整数',SKU_NAME:'请填写每个规格的名称',INVALID_PRICE:'请检查售价，金额须大于 0 且最多两位小数',RESERVED_SKU_CANNOT_REMOVE:'该规格仍有未结束订单，请保留原规格',INVALID_STATE:'订单状态已变化，请刷新后重试'};
 async function requestOnce(url,body){
   const controller=new AbortController();let timer;
   try{
@@ -17,6 +17,7 @@ async function requestOnce(url,body){
       fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body,signal:controller.signal}).then(async r=>({status:r.status,out:await r.json()})),
       new Promise((_,reject)=>{timer=setTimeout(()=>{reject(Error('REQUEST_TIMEOUT'));controller.abort();},15000);})
     ]);
+    if(url==='/auth/login'&&[400,429,503].includes(result.status)&&['INVALID_CREDENTIALS','LOGIN_RATE_LIMIT','LOGIN_BUSY'].includes(result.out?.error))throw Object.assign(Error(requestMessages[result.out.error]),{business:true,code:result.out.error});
     if(result.status===401){loginScreen();throw Object.assign(Error('请先登录'),{business:true});}
     if([408,429,500,502,503,504].includes(result.status))throw Error('TEMPORARILY_UNAVAILABLE');
     const out=result.out;
@@ -31,7 +32,7 @@ async function request(url,input={}){
   const canRetry=url==='/auth/me'||url==='/api'&&readActions.has(input.action),body=JSON.stringify(input);
   for(let attempt=0;attempt<2;attempt++)try{return await requestOnce(url,body);}catch(e){
     if(e.retryable&&canRetry&&attempt===0){await new Promise(r=>setTimeout(r,300));continue;}
-    if(e.retryable)e.message=canRetry?'网络或服务暂时不可用，请稍后重新加载。':'未收到确认结果，请先核对是否已保存或订单状态是否已更新，勿连续重复提交。';
+    if(e.retryable)e.message=url==='/auth/login'?'登录请求未得到确认，请检查网络后重试。':canRetry?'网络或服务暂时不可用，请稍后重新加载。':'未收到确认结果，请先核对是否已保存或订单状态是否已更新，勿连续重复提交。';
     throw e;
   }
 }

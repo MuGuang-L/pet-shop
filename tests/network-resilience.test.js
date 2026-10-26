@@ -46,7 +46,7 @@ test('数据库晚启动时健康检查为 503，连接恢复后无需重启 HTT
  const {start}=require('../server/index');let attempts=0,online=false,writes=0,closed=0;
  const unavailable=()=>Object.assign(Error('private connection'),{name:'MongoServerSelectionError'});
  const store={db:{command:async()=>{if(!online)throw unavailable();return {ok:1};}},execute:async()=>{if(!online)throw unavailable();writes++;return [];},close:async()=>closed++};
- const auth=new Auth([createAccount('owner','test-password','merchant','owner')]),token=auth.login('owner','test-password').token;
+ const auth=new Auth([createAccount('owner','test-password','merchant','owner')]),token=(await auth.login('owner','test-password')).token;
  const service=await start({port:0,retryDelay:5,logger:{log(){},error(){}},httpOptions:{auth},connect:async()=>{attempts++;if(attempts<3)throw unavailable();online=true;return store;}});
  const base='http://127.0.0.1:'+service.server.address().port;
  try{
@@ -95,4 +95,15 @@ test('内部错误不向客户端回传文件位置或调试详情',async()=>{
  await new Promise(r=>server.listen(0,'127.0.0.1',r));
  try{const r=await fetch('http://127.0.0.1:'+server.address().port+'/health');assert.equal(r.status,500);assert.deepEqual(await r.json(),{ok:false,error:'SERVICE_TEMPORARILY_UNAVAILABLE',retryable:true});}
  finally{await new Promise(r=>server.close(r));}
+});
+
+
+test('两侧登录限流和繁忙有可读提示，不自动重发，不误报商品保存结果',async()=>{
+ for(const [status,error,message] of [[400,'INVALID_CREDENTIALS','账号或密码不正确'],[429,'LOGIN_RATE_LIMIT','登录尝试过多'],[503,'LOGIN_BUSY','当前登录人数较多']]){
+  let calls=0;const run=merchant(async()=>{calls++;return {status,json:async()=>({ok:false,error})};});
+  await assert.rejects(run("request('/auth/login',{username:'buyer',password:'test'})"),e=>e.message.includes(message));assert.equal(calls,1);
+  const f=buyer(o=>o.success({statusCode:status,data:{ok:false,error}}));
+  await assert.rejects(f.api.login('buyer','test'),e=>e.message.includes(message));assert.equal(f.calls.length,1);assert.equal(f.storage['pet-shop-session-v2'].token,'session-a');
+ }
+ const run=merchant(async()=>{throw Error('network failure');});await assert.rejects(run("request('/auth/login',{})"),e=>e.message==='登录请求未得到确认，请检查网络后重试。');
 });
