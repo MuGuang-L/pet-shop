@@ -1,4 +1,5 @@
 'use strict';
+const fulfillment=require('./fulfillment');
 const actions=new Set(['refundRequest','refundWithdraw','refundReview','returnShip','returnInspect','refundFail','mockRefund']);
 const requireValue=(ok,message)=>{if(!ok)throw Error(message);};
 function text(value,label,max=300){requireValue(typeof value==='string'&&value.trim().length>0&&value.length<=max,`${label}请填写 1～${max} 字`);return value.trim();}
@@ -25,12 +26,13 @@ function handle(state,actor,action,input,options,{release,address,reservedStock}
   if(r.stage==='WITHDRAWN')return o;requireValue(o.status==='REFUND_REQUESTED','只能撤回待审核的申请');r.stage='WITHDRAWN';r.status='WITHDRAWN';o.status=r.previous;event('买家撤回申请','订单恢复原状态');return o;
  }
  if(action==='refundReview'){
-  requireValue(typeof input.approve==='boolean','请选择审核结果');const reviewNote=text(input.note,'审核意见');
-  if(r.review){requireValue(r.review.approve===input.approve&&r.review.note===reviewNote,'审核结果已提交，不能覆盖');return o;}
+  requireValue(typeof input.approve==='boolean','请选择审核结果');const reviewNote=text(input.note,'审核意见');const reviewFingerprint=JSON.stringify([input.approve,reviewNote,input.items??null,input.confirm??null,input.waiveReturn??null,input.returnAddress??null]);
+  if(r.review){requireValue(r.review.approve===input.approve&&r.review.note===reviewNote&&(!r.review.fingerprint||r.review.fingerprint===reviewFingerprint),'审核结果已提交，不能覆盖');return o;}
   requireValue(o.status==='REFUND_REQUESTED','INVALID_STATE');
   if(input.approve&&r.type==='RETURN_REFUND')r.returnAddress=address(input.returnAddress);
-  if(input.approve&&r.type==='REFUND_ONLY'&&['SHIPPED','COMPLETED'].includes(r.previous))requireValue(input.waiveReturn===true,'请确认已发货商品仅退款且不回补库存');
-  r.review={approve:input.approve,note:reviewNote,at:now};
+  if(input.approve&&r.type==='REFUND_ONLY'&&(input.items!==undefined||o.fulfillment?.issue?.status==='OPEN')){requireValue(input.confirm===true,'请确认整单退款金额和实际可售数量');r.stockDisposition=fulfillment.stockPlan(o,input.items);r.stockDispositionApplied=false;}
+  if(input.approve&&r.type==='REFUND_ONLY'&&!r.stockDisposition&&['SHIPPED','COMPLETED'].includes(r.previous))requireValue(input.waiveReturn===true,'请确认已发货商品仅退款且不回补库存');
+  r.review={approve:input.approve,note:reviewNote,at:now,fingerprint:reviewFingerprint};
   if(input.approve){o.status='REFUNDING';r.status='PROCESSING';r.stage=r.type==='RETURN_REFUND'?'WAIT_RETURN':'WAIT_REFUND';event('商家同意售后',reviewNote);}else{o.status=r.previous;r.status='REJECTED';r.stage='REJECTED';event('商家拒绝申请',reviewNote);}return o;
  }
  if(action==='returnShip'){
@@ -52,7 +54,7 @@ function handle(state,actor,action,input,options,{release,address,reservedStock}
  }
  if(action==='mockRefund'){
   if(o.status==='REFUNDED')return o;requireValue(o.status==='REFUNDING'&&['WAIT_REFUND','REFUND_FAILED'].includes(r.stage),'退货尚未验收，不能退款');
-  if(r.previous==='PAID')release(state,o);o.status='REFUNDED';r.status='SUCCEEDED';r.stage='SUCCEEDED';r.provider='MOCK';r.refundedAt=now;event('模拟退款成功','整单退还 ¥'+(r.amount/100).toFixed(2)+'，未产生真实资金流');return o;
+  if(r.stockDisposition)fulfillment.settleStock(state,o,actor,now,reservedStock);else if(r.previous==='PAID')release(state,o);o.status='REFUNDED';fulfillment.finishIssue(o,now,'REFUNDED','整单退款完成，履约结束');r.status='SUCCEEDED';r.stage='SUCCEEDED';r.provider='MOCK';r.refundedAt=now;event('模拟退款成功','整单退还 ¥'+(r.amount/100).toFixed(2)+'，未产生真实资金流');return o;
  }
  throw Error('UNKNOWN_ACTION');
 }

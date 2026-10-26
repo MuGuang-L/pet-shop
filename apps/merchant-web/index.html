@@ -39,7 +39,7 @@
 <dialog id="discard-dialog" aria-labelledby="discard-title" aria-describedby="discard-description">
   <h2 id="discard-title">放弃未保存的修改？</h2>
   <p id="discard-description">这次编辑的内容尚未保存。继续编辑可以保留当前填写的内容。</p>
-  <div class="discard-actions"><button autofocus onclick="resolveDiscard(false)">继续编辑</button><button class="primary" onclick="resolveDiscard(true)">放弃修改</button></div>
+  <div class="discard-actions"><button id="discard-cancel" autofocus onclick="resolveDiscard(false)">继续编辑</button><button id="discard-confirm" class="primary" onclick="resolveDiscard(true)">放弃修改</button></div>
 </dialog>
 <script src="/studio.js"></script><script src="/admin/app.js"></script><script src="/admin/settings.js"></script>
 </body>

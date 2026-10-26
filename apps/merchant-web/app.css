@@ -238,3 +238,9 @@ button,input,select,textarea{border-radius:6px}
 .inventory-pages{display:flex;gap:10px;align-items:center;margin-top:16px;font-size:12px}.inventory-pages span{margin-right:auto}
 input[readonly]{background:#f2f3ee;color:#7c8575}
 @media(max-width:540px){.inventory-form .two-fields{grid-template-columns:1fr;gap:0}.inventory-pages{flex-wrap:wrap}}
+
+.order-tasks.has-issues{grid-template-columns:repeat(5,minmax(0,1fr))}
+.fulfillment-issue{border:1px solid #dce4d5;background:#f3f6ee;border-radius:8px;margin:24px 0;padding:20px;line-height:1.8;font-size:13px}.fulfillment-issue.is-open{border-left:3px solid #a07844;background:#faf6ed}.fulfillment-issue h3{font-size:16px;margin:8px 0}.fulfillment-issue p{white-space:pre-wrap;overflow-wrap:anywhere}.fulfillment-issue details{border-top:1px solid #dedfd1;padding-top:12px;margin-top:16px}.fulfillment-issue small{color:#7d8873}
+.issue-editor fieldset{border:0;padding:0;margin:0;min-width:0}.issue-editor select,.issue-editor input:not([type=checkbox]),.issue-editor textarea{width:100%;box-sizing:border-box;margin:8px 0 18px;padding:10px 12px}.issue-editor textarea{min-height:80px}.issue-refund{border-top:1px solid #dfe5d8;margin-top:22px;padding-top:18px}.issue-refund>p{font-size:12px;line-height:1.8;color:#718067}.issue-editor button[hidden]{display:none}
+@media(max-width:1100px){.order-tasks.has-issues{grid-template-columns:repeat(3,minmax(0,1fr))}.order-tasks.has-issues button{border-bottom:1px solid #e4eadc}}
+@media(max-width:760px){.order-tasks.has-issues{grid-template-columns:repeat(2,minmax(0,1fr))}.order-tasks.has-issues button:last-child{grid-column:1/-1}}

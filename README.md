@@ -85,6 +85,7 @@ npm.cmd test
 - [三方联调分支与验收](docs/FULL-STACK-INTEGRATION.md)
 - [小程序侧 API](docs/BUYER-API.md)
 - [库存入库与盘点](docs/INVENTORY.md)
+- [缺货、外送失败与自提延期](docs/FULFILLMENT-ISSUES.md)
 - [备份与恢复](docs/BACKUP-RECOVERY.md)
 - [上线前验收清单](docs/PRELAUNCH-ACCEPTANCE.md)
 - [上游兼容性](UPSTREAM-COMPATIBILITY.md)

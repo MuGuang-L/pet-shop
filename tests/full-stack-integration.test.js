@@ -18,7 +18,8 @@ async function fixture(run){
  const raw=async(path,body,headers={})=>fetch(base+path,{method:'POST',headers:{'Content-Type':'application/json',...headers},body:JSON.stringify(body)});
  const login=await raw('/auth/login',{username:'merchant',password:'integration-password'});const cookie=login.headers.get('set-cookie').split(';')[0];
  const nodes={},node=id=>nodes[id]||={innerHTML:'',textContent:'',value:'',checked:false,style:{},open:false,setAttribute(){},showModal(){this.open=true;},close(){this.open=false;},addEventListener(){},querySelector(){return null;},appendChild(){}};
- const merchant=vm.createContext({Studio,console,AbortController,setTimeout,clearTimeout,document:{getElementById:node,querySelectorAll:()=>[],createElement:()=>({style:{}})},window:{addEventListener(){}},fetch:(path,options)=>fetch(base+path,{...options,headers:{...options.headers,Cookie:cookie,Origin:'http://127.0.0.1:4173'}})});
+ const merchantStorage=new Map();
+ const merchant=vm.createContext({Studio,console,crypto:{randomUUID:require('node:crypto').randomUUID},sessionStorage:{getItem:key=>merchantStorage.get(key)||null,setItem:(key,value)=>merchantStorage.set(key,value),removeItem:key=>merchantStorage.delete(key)},AbortController,setTimeout,clearTimeout,document:{getElementById:node,querySelectorAll:()=>[],createElement:()=>({style:{}})},window:{addEventListener(){}},fetch:(path,options)=>fetch(base+path,{...options,headers:{...options.headers,Cookie:cookie,Origin:'http://127.0.0.1:4173'}})});
  vm.runInContext(source('apps/merchant-web/app.js').replace(/boot\(\);\s*$/,''),merchant);
  vm.runInContext(source('apps/merchant-web/settings.js'),merchant);
  const m=code=>vm.runInContext(code,merchant);
@@ -86,4 +87,54 @@ test('三方联调：商家登记入库 → 小程序读取新库存 → 下单�
  const history=await f.m("api('stockHistory',{productId:'food'})");assert.equal(history.total,1);assert.equal(history.items[0].delta,5);
  await assert.rejects(f.api.call('adjustStock',input));await assert.rejects(f.api.call('stockHistory',{}));
  const state=await f.store.snapshot();assert.equal(state.products[0].skus[0].stock,25);assert.equal(state.stockMovements.length,1);assert.equal(state.orders[0].status,'CANCELLED');
+}));
+
+async function issueOrder(f,fulfillment='PICKUP'){
+ const address=await f.api.call('saveAddress',{name:'履约联调',phone:'13800000000',detail:'模拟省模拟市联调路 1 号'});
+ const o=await f.api.call('createOrder',{key:'fullstack-issue-order',fulfillment,contact:address,addressId:address.id,lines:[{productId:'food',skuId:'food-1',qty:3}]});await f.api.call('mockPay',{id:o.id});await f.m('boot()');await f.m(`viewOrder('${o.id}')`);return o;
+}
+async function buyerIssue(f,id){f.page.showOrder(event({id}));await idle(f.page);return f.page.data.selectedOrder;}
+function fillStock(f,prefix,received,restock){f.node(prefix+'-received-0').value=String(received);f.node(prefix+'-restock-0').value=String(restock);f.node(prefix+'-confirm').checked=true;}
+
+test('三方联调：缺货登记 → 买家查看原因 → 商家实际数量退款 → 库存只回补可售数',options,async()=>fixture(async f=>{
+ const o=await issueOrder(f);f.node('issue-type').value='OUT_OF_STOCK';f.node('issue-note').value='盘点缺货，已联系买家取消';await f.m("submitFulfillment('recordFulfillmentIssue')");
+ let buyer=await buyerIssue(f,o.id);assert.equal(buyer.statusText,'缺货待处理');assert.match(buyer.nextStep,/盘点缺货/);assert.equal(buyer.issueInfo.timeline.length,1);assert.match(f.node('app').innerHTML,/履约问题/);
+ f.node('issue-refund-note').value='缺一件、破损一件，可售一件，整单退款';fillStock(f,'issue-stock',2,1);await f.m("submitFulfillment('merchantRefund')");buyer=await buyerIssue(f,o.id);assert.equal(buyer.status,'REFUNDING');assert.equal(buyer.refund.merchantInitiated,true);
+ await f.m("orderAction('mockRefund')");buyer=await buyerIssue(f,o.id);assert.equal(buyer.status,'REFUNDED');assert.equal(buyer.issueInfo.status,'RESOLVED');assert.equal((await f.api.call('catalog'))[0].skus[0].stock,18);
+ assert.equal((await f.store.snapshot()).stockMovements.length,1);assert.deepEqual(f.errors,[]);
+}));
+
+test('三方联调：自提改期后恢复核销、外送失败后再次送出并收货',options,async()=>{
+ await fixture(async f=>{
+  const o=await issueOrder(f);await f.m("orderAction('pickupReady')");f.node('issue-type').value='PICKUP_DELAY';f.node('issue-note').value='买家暂时无法到店，协商改期';await f.m("submitFulfillment('recordFulfillmentIssue')");
+  f.node('issue-resolution').value='RESCHEDULE';f.node('issue-next-at').value=new Date(Date.now()+86400000).toISOString().slice(0,16);f.node('issue-note').value='改为次日到店';await f.m("submitFulfillment('resolveFulfillmentIssue')");
+  let buyer=await buyerIssue(f,o.id);assert.match(buyer.nextStep,/约定处理时间/);assert.equal(buyer.issueInfo.status,'OPEN');assert.ok(buyer.issueInfo.nextText);
+  f.node('issue-resolution').value='RESUME';f.node('issue-note').value='买家已到店，核对后提货';await f.m("submitFulfillment('resolveFulfillmentIssue')");const code=(await f.api.call('order',{id:o.id})).fulfillment.code;
+  await f.m(`orderAction('pickupRedeem',{code:'${code}'})`);assert.equal((await buyerIssue(f,o.id)).status,'COMPLETED');
+ });
+ await fixture(async f=>{
+  const o=await issueOrder(f,'DELIVERY');await f.m("orderAction('ship',{number:'SEND001',note:'第一次送出'})");f.node('issue-type').value='DELIVERY_FAILED';f.node('issue-note').value='送达时无人接收，商品已带回';await f.m("submitFulfillment('recordFulfillmentIssue')");assert.equal((await buyerIssue(f,o.id)).statusText,'外送未送达');
+  f.node('issue-resolution').value='REDELIVER';f.node('issue-number').value='SEND002';f.node('issue-note').value='已联系买家并再次送出';await f.m("submitFulfillment('resolveFulfillmentIssue')");
+  const buyer=await buyerIssue(f,o.id);assert.equal(buyer.shipping.number,'SEND002');assert.equal(buyer.fulfillment.deliveryHistory[0].number,'SEND001');f.page.action(event({action:'confirmReceipt'}));await idle(f.page);assert.equal(f.page.data.selectedOrder.status,'COMPLETED');assert.deepEqual(f.errors,[]);
+ });
+});
+
+test('三方联调：履约登记响应丢失后重新打开订单，用原请求核对且不重复登记',options,async()=>fixture(async f=>{
+ const o=await issueOrder(f);f.m("const fulfillmentFetch=fetch;let dropIssue=true;fetch=async(path,options)=>{const result=await fulfillmentFetch(path,options);if(dropIssue&&JSON.parse(options.body).action==='recordFulfillmentIssue'){dropIssue=false;throw Error('lost response');}return result;}");
+ f.node('issue-type').value='OUT_OF_STOCK';f.node('issue-note').value='库存实物不一致';await f.m("submitFulfillment('recordFulfillmentIssue')");assert.equal(f.node('issue-fields').disabled,true);
+ await f.m(`viewOrder('${o.id}')`);assert.match(f.node('modal').innerHTML,/上次处理待确认/);await f.m('submitFulfillment()');
+ assert.equal((await f.store.snapshot()).orders[0].fulfillment.issue.timeline.length,1);assert.equal(f.m(`readIssuePending('${o.id}')`),null);assert.equal((await buyerIssue(f,o.id)).issueInfo.timeline.length,1);
+}));
+
+test('三方联调：买家先申请缺货退款，商家审核也必须核对实际库存数量',options,async()=>fixture(async f=>{
+ const o=await issueOrder(f);f.node('issue-type').value='OUT_OF_STOCK';f.node('issue-note').value='有商品缺失，联系买家退款';await f.m("submitFulfillment('recordFulfillmentIssue')");
+ await buyerIssue(f,o.id);f.page.setData({afterForm:{type:'REFUND_ONLY',reason:'缺货无法发出，申请退款'}});f.page.action(event({action:'refundRequest'}));await idle(f.page);assert.equal(f.page.data.selectedOrder.status,'REFUND_REQUESTED');
+ await f.m(`viewOrder('${o.id}')`);assert.match(f.node('modal').innerHTML,/review-stock-received-0/);f.node('after-review-note').value='两件缺失，一件可售';fillStock(f,'review-stock',1,1);await f.m('reviewAftersale(true)');await f.m("orderAction('mockRefund')");
+ assert.equal((await buyerIssue(f,o.id)).status,'REFUNDED');assert.equal((await f.api.call('catalog'))[0].skus[0].stock,18);assert.equal((await f.store.snapshot()).stockMovements.length,1);assert.deepEqual(f.errors,[]);
+}));
+
+test('三方联调：履约写入成功后详情刷新失败，明确已保存且不生成第二个请求',options,async()=>fixture(async f=>{
+ const o=await issueOrder(f);f.m("const committedFetch=fetch;let issueCommitted=false,failedReads=0;fetch=async(path,options)=>{const action=JSON.parse(options.body).action;if(issueCommitted&&action==='order'&&failedReads<2){failedReads++;throw Error('read unavailable');}const result=await committedFetch(path,options);if(action==='recordFulfillmentIssue')issueCommitted=true;return result;}");
+ f.node('issue-type').value='OUT_OF_STOCK';f.node('issue-note').value='缺货等待处理';await f.m("submitFulfillment('recordFulfillmentIssue')");assert.match(f.node('error').textContent,/已保存，但刷新失败/);assert.equal(f.m(`readIssuePending('${o.id}')`),null);assert.equal(f.node('issue-retry').hidden,true);
+ await f.m(`viewOrder('${o.id}')`);assert.equal((await f.store.snapshot()).orders[0].fulfillment.issue.timeline.length,1);
 }));

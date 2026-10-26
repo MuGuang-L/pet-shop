@@ -23,6 +23,7 @@ function withoutImage(p,index){const images=productImages(p);images.splice(index
 function cents(value){const s=String(value).trim();if(!/^\d+(\.\d{1,2})?$/.test(s))throw Error('售价请填写大于 0 的金额，最多两位小数');const [a,b='']=s.split('.');const n=Number(a)*100+Number(b.padEnd(2,'0'));if(!Number.isSafeInteger(n)||n<=0||n>10000000)throw Error('售价须在 0.01～100000 元之间');return n;}
 function images(target){return assets.filter(a=>target==='hero'?a.kind==='横幅':target==='empty'?a.kind==='场景'||a.kind==='分类':target==='avatar'?a.kind==='分类':target==='product'?a.kind==='商品':a.kind!=='横幅'&&a.kind!=='场景');}
 const pickupStore={name:'爪爪小铺 · 演示门店',detail:'示例市花园路 18 号（模拟地址）',hours:'每日 10:00—20:00',phone:'13800000000'};
-function fulfillmentLabel(o){if(o.fulfillment?.type==='PICKUP'){if(o.status==='PAID')return o.fulfillment.readyAt?'待到店自提':'门店备货中';if(o.status==='COMPLETED')return '已自提';}return ({PAID:'商家备货中',SHIPPED:'商家配送中'})[o.status]||'';}
-return {assets,slots,defaults,templates,create,cents,images,pets,homeDefaults,petOf,featuredOf,matches,homeProducts,productImages,withImage,withoutImage,afterStages,pickupStore,fulfillmentLabel};
+const issueLabels={OUT_OF_STOCK:'缺货待处理',DELIVERY_FAILED:'外送未送达',PICKUP_DELAY:'自提延期',CONTACT_UNREACHABLE:'联系未果'};
+function fulfillmentLabel(o){if(o.fulfillment?.issue?.status==='OPEN'&&['PAID','SHIPPED'].includes(o.status))return issueLabels[o.fulfillment.issue.type]||'履约待处理';if(o.fulfillment?.type==='PICKUP'){if(o.status==='PAID')return o.fulfillment.readyAt?'待到店自提':'门店备货中';if(o.status==='COMPLETED')return '已自提';}return ({PAID:'商家备货中',SHIPPED:'商家配送中'})[o.status]||'';}
+return {assets,slots,defaults,templates,create,cents,images,pets,homeDefaults,petOf,featuredOf,matches,homeProducts,productImages,withImage,withoutImage,afterStages,pickupStore,fulfillmentLabel,issueLabels};
 });

@@ -94,3 +94,14 @@
 图片 `/assets/...` 或 `/uploads/...` 是相对 API 域名路径，现有 services/api.js 自动转换。商家上传只开放给商家网页，买家账号不能上传商品图片。
 
 商家维护的接口包括 merchantProducts/merchantOrdersPage/saveProduct/saveStorefront/saveHomeContent/ship/pickupReady/pickupRedeem/refundReview/returnInspect/refundFail/mockRefund；买家调用会返回 403。
+
+
+### 履约问题（可选新增字段）
+
+订单状态枚举保持不变。`fulfillment.issue` 存在时包含 `id,type,status,note,revision,createdAt,updatedAt,timeline`，可有 `nextAt`（毫秒时间戳）、`resolution`、`closedAt`；`status` 为 OPEN/RESOLVED。`fulfillment.issueHistory` 保存以前的问题，`deliveryHistory` 保存再次送出之前的配送信息。
+
+PAID/SHIPPED 且 issue 为 OPEN 时，应展示处理原因及约定时间，不能只显示“可到店提货”或“正常配送中”。REFUNDING 仍按原售后阶段展示。约定时间不代表自动送达或自动取消；买家刷新查看后续处理。
+
+`tracking.events` 增加履约处理事件及可选 `nextAt`，原有 `time,text` 保留。商家发起退款时，`refund.merchantInitiated` 为 true；`stockDisposition` 和 `stockDispositionApplied` 记录服务侧数量处理。小程序无需计算或写入这些字段，也没有商家退款、改期、重送权限。
+
+见 [履约问题说明](FULFILLMENT-ISSUES.md)。

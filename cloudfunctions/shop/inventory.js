@@ -1,7 +1,7 @@
 'use strict';
 const need=(ok,code)=>{if(!ok)throw Error(code);};
 const actions=new Set(['adjustStock','stockHistory']);
-const types=['RECEIVE','COUNT','LOSS','PRODUCT_EDIT','INITIAL','RETURN_INSPECTION'];
+const types=['RECEIVE','COUNT','LOSS','PRODUCT_EDIT','INITIAL','RETURN_INSPECTION','FULFILLMENT_RETURN'];
 function record(state,actor,product,sku,before,after,type,reason,now){
   const row={id:'sm'+(++state.sequence),productId:product.id,skuId:sku.id,name:product.name,spec:sku.name,
     actor:actor.id,at:now,type,reason,before,after,delta:after-before};
