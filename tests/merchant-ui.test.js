@@ -6,6 +6,48 @@ const Studio = require('../cloudfunctions/shop/studio');
 const domain = require('../cloudfunctions/shop/domain');
 const source = fs.readFileSync(require.resolve('../apps/merchant-web/app.js'), 'utf8').replace(/boot\(\);\s*$/, '');
 
+function prepareUpload(f){
+ f.run(`editor('toy'); globalThis.uploadInput={files:[{name:'test.jpg',size:128,type:'image/jpeg'}],value:'test.jpg',disabled:false};
+ globalThis.FileReader=class {readAsDataURL(){this.result='data:image/jpeg;base64,/9j/';this.onload();}};`);
+}
+
+test('图片上传失败可重选同一文件，保留表单和旧封面，成功后才更新草稿',async()=>{
+ const f=fixture();await f.run("show('products')");prepareUpload(f);fillEditor(f,{pname:'尚未保存的商品名'});
+ const before=f.run('JSON.stringify(editing)');
+ f.run(`globalThis.uploadAttempts=0;fetch=async()=>{uploadAttempts++;throw Error('offline');};`);
+ await f.run("uploadStudioImage(uploadInput,'product')");
+ assert.equal(f.run('uploadAttempts'),1);assert.equal(f.run('JSON.stringify(editing)'),before);
+ assert.equal(f.node('pname').value,'尚未保存的商品名');assert.match(f.node('image-status-product').textContent,/原图和填写内容已保留.*重新选择/);
+ assert.equal(f.run('uploadInput.value'),'');assert.equal(f.run('uploadInput.disabled'),false);assert.equal(f.run('pendingUploads'),0);
+ f.run(`uploadInput.value='test.jpg';fetch=async()=>{uploadAttempts++;return {status:200,json:async()=>({ok:true,path:'/uploads/abc-123.jpg'})};};`);
+ await f.run("uploadStudioImage(uploadInput,'product')");
+ assert.equal(f.run('uploadAttempts'),2);assert.equal(f.run('editing.image'),'/uploads/abc-123.jpg');assert.equal(f.run('modalDirty'),true);assert.equal(f.run('uploadInput.value'),'');
+ assert.equal(f.calls.filter(c=>c.action==='saveProduct').length,0);
+});
+
+test('无效文件和满六张相册在读取或上传前拒绝',async()=>{
+ const f=fixture();await f.run("show('products')");prepareUpload(f);
+ f.event('input',{target:{type:'file',closest:()=>true}});f.event('change',{target:{type:'file',closest:()=>true}});
+ assert.equal(f.run('modalDirty'),false);
+ f.run(`globalThis.uploadReads=0;FileReader=class {constructor(){uploadReads++;throw Error('must not read');}};`);
+ for(const file of [{size:0,type:'image/png'},{size:2097153,type:'image/png'},{size:100,type:'text/plain'}]){
+  f.run(`uploadInput.files=[${JSON.stringify(file)}];uploadInput.value='selected';`);await f.run("uploadStudioImage(uploadInput,'product')");
+  assert.match(f.node('image-status-product').textContent,/非空.*2MB.*JPG/);assert.equal(f.run('uploadInput.value'),'');
+ }
+ f.run(`uploadInput.files=[{size:100,type:'image/png'}];editing.images=Array.from({length:6},(_,i)=>'/uploads/'+i+'.png');`);
+ await f.run("uploadStudioImage(uploadInput,'product')");assert.match(f.node('image-status-product').textContent,/先移除一张/);assert.equal(f.run('uploadReads'),0);
+});
+
+test('图片读取取消会解除上传状态，旧草稿迟到结果不修改新商品',async()=>{
+ const f=fixture();await f.run("show('products')");prepareUpload(f);
+ f.run(`FileReader=class {readAsDataURL(){this.onabort();}};`);await f.run("uploadStudioImage(uploadInput,'product')");
+ assert.match(f.node('image-status-product').textContent,/读取已取消/);assert.equal(f.run('pendingUploads'),0);assert.equal(f.run('uploadInput.disabled'),false);
+ prepareUpload(f);f.run(`fetch=()=>new Promise(resolve=>{globalThis.finishUpload=()=>resolve({status:200,json:async()=>({ok:true,path:'/uploads/abc-123.jpg'})});});`);
+ const pending=f.run("uploadStudioImage(uploadInput,'product')");await Promise.resolve();
+ f.run("editor('food')");const before=f.run('JSON.stringify(editing)');f.run('finishUpload()');await pending;
+ assert.equal(f.run('JSON.stringify(editing)'),before);assert.equal(f.run('pendingUploads'),0);
+});
+
 function fixture(intercept) {
   let state = domain.seed();
   const nodes = {}, calls = [], listeners = {};

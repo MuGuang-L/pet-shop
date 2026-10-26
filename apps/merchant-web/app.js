@@ -123,7 +123,7 @@ function closeModal(force=false){
   if(!force&&(modalDirty||pendingUploads)){askDiscard(()=>closeModal(true));return false;}
   modalDirty=false;modalKind='';$('modal').close();return true;
 }
-window.addEventListener('input',e=>{if($('modal').open&&e.target.closest?.('#modal'))markDirty();});
+window.addEventListener('input',e=>{if($('modal').open&&e.target.closest?.('#modal')&&e.target.type!=='file')markDirty();});
 window.addEventListener('change',e=>{if($('modal').open&&e.target.closest?.('#modal')&&e.target.type!=='file')markDirty();});
 window.addEventListener('beforeunload',e=>{if(modalDirty||savingProduct||savingOrder||pendingUploads){e.preventDefault();e.returnValue='';}});
 $('modal').addEventListener('cancel',e=>{e.preventDefault();closeModal();});
@@ -216,7 +216,22 @@ async function saveProduct(e){
 
 function imageControl(target,src){return `<section class="panel image-control ${target==='product'?'product-image-control':''}"><h3>${target==='product'?'商品图片':'选择图片'}</h3><img id="image-${target}" class="chosen-image" src="${esc(src||'/assets/empty-v2.jpg')}" alt="当前选择的图片"><label class="upload-label">上传自己的图片（JPG / PNG，≤2MB）<input type="file" accept="image/jpeg,image/png" onchange="uploadStudioImage(this,'${target}')"></label><details><summary>从备选图库选择 · ${studio.images(target).length} 张</summary><p class="field-caption">AI 示意图，销售时请确保图片与实物一致。</p><div class="asset-grid">${studio.images(target).map(a=>`<button type="button" onclick="chooseStudioImage('${target}','${a.src}')"><img src="${a.src}" alt="${a.name}"><span>${a.name}</span><small>${a.kind} · AI 示意</small></button>`).join('')}</div></details><p id="image-status-${target}" role="status"></p></section>`;}
 function chooseStudioImage(target,src){if(target==='product'){try{Object.assign(editing,studio.withImage(editing,src));$('product-gallery').innerHTML=productGallery();}catch(e){error(e);return;}}else storeDraft[target]=src;markDirty();$('image-'+target).src=src;$('image-status-'+target).textContent='已选择，保存后生效';}
-async function uploadStudioImage(input,target){const f=input.files[0];if(!f)return;const status=$('image-status-'+target);if(f.size>2*1024*1024||!['image/png','image/jpeg'].includes(f.type)){status.textContent='请选择 2MB 以内的 JPG 或 PNG 图片';input.value='';return;}const draft=target==='product'?editing:storeDraft;status.textContent='正在上传图片…';input.disabled=true;pendingUploads++;try{const base64=await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result.split(',')[1]);r.onerror=()=>reject(Error('图片读取失败'));r.readAsDataURL(f);});const uploadedPath=await request('/upload',{base64});if(draft!==(target==='product'?editing:storeDraft)||!$('modal').open)return;chooseStudioImage(target,uploadedPath);}catch(e){status.textContent=e.message;}finally{pendingUploads--;input.disabled=false;}}
+async function uploadStudioImage(input,target){
+ const f=input.files[0];if(!f)return;
+ const status=$('image-status-'+target),draft=target==='product'?editing:storeDraft;
+ if(!draft||!$('modal').open){input.value='';return;}
+ if(!f.size||f.size>2*1024*1024||!['image/png','image/jpeg'].includes(f.type)){status.textContent='请选择非空且不超过 2MB 的 JPG 或 PNG 图片';input.value='';return;}
+ if(target==='product'&&studio.productImages(draft).length>=6){status.textContent='最多 6 张图片，请先移除一张再上传';input.value='';return;}
+ status.textContent='正在上传图片…';input.disabled=true;pendingUploads++;
+ try{
+  const base64=await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result.split(',')[1]);r.onerror=()=>reject(Error('图片读取失败，请重新选择'));r.onabort=()=>reject(Error('图片读取已取消，请重新选择'));r.readAsDataURL(f);});
+  if(draft!==(target==='product'?editing:storeDraft)||!$('modal').open)return;
+  const uploadedPath=await request('/upload',{base64});
+  if(draft!==(target==='product'?editing:storeDraft)||!$('modal').open)return;
+  chooseStudioImage(target,uploadedPath);
+ }catch(e){status.textContent=e.retryable?'图片上传未完成，原图和填写内容已保留。请重新选择这张图片重试。':e.message;}
+ finally{pendingUploads--;input.disabled=false;input.value='';}
+}
 
 function productGallery(){return '<p class="field-caption">第一张为封面。可拖动图片排序，也可使用前移、后移按钮。</p><div class="photo-gallery">'+studio.productImages(editing).map((src,i,images)=>`<div class="photo-item" draggable="true" ondragstart="startPhotoDrag(event,${i})" ondragover="event.preventDefault()" ondrop="dropPhoto(event,${i})"><div class="photo-number">${i===0?'封面':'图片 '+(i+1)}</div><img src="${esc(src)}" alt="商品图片 ${i+1}" draggable="false"><div class="photo-actions"><button type="button" ${i===0?'disabled':''} onclick="movePhoto(${i},${i-1})" aria-label="图片 ${i+1} 前移">←</button><button type="button" ${i===images.length-1?'disabled':''} onclick="movePhoto(${i},${i+1})" aria-label="图片 ${i+1} 后移">→</button><button type="button" onclick="removePhoto(${i})" aria-label="移除图片 ${i+1}">移除</button></div></div>`).join('')+'</div>';}
 function refreshPhotos(){$('product-gallery').innerHTML=productGallery();$('image-product').src=editing.image||'/assets/empty-v2.jpg';markDirty();}
