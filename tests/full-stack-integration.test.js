@@ -57,7 +57,7 @@ test('三方联调：商家模板建品与设置 → 小程序外送付款 → �
  f.page.setData({'afterForm.company':'模拟退回','afterForm.number':'RETURN-LOCAL-01'});f.page.action(event({action:'returnShip'}));await idle(f.page);
  await f.m(`viewOrder(${JSON.stringify(id)})`);f.node('received-0').value='1';f.node('restock-0').value='1';f.node('inspection-note').value='模拟验收可售';f.node('inspection-confirm').checked=true;await f.m('inspectReturn()');await f.m("orderAction('mockRefund')");
  f.page.refreshOrder();await idle(f.page);assert.equal(f.page.data.selectedOrder.status,'REFUNDED');
- const snapshot=await f.store.snapshot();assert.equal(snapshot.products.find(p=>p.id===product.id).skus[0].stock,5);assert.equal(snapshot.stockMovements.length,1);assert.equal(snapshot.orders.length,1);assert.deepEqual(f.errors,[]);
+ const snapshot=await f.store.snapshot();assert.equal(snapshot.products.find(p=>p.id===product.id).skus[0].stock,5);assert.equal(snapshot.stockMovements.filter(r=>r.type==='RETURN_INSPECTION').length,1);assert.equal(snapshot.orders.length,1);assert.deepEqual(f.errors,[]);
  await f.m(`api('merchantProducts').then(ps=>api('saveProduct',{...ps.find(p=>p.id===${JSON.stringify(product.id)}),active:false}))`);await f.page.refresh();assert.ok(!f.page.data.products.some(p=>p.id===product.id));
 }));
 
@@ -72,4 +72,18 @@ test('三方联调：立即购买丢失响应后重开恢复，不扣原购物�
  await f.m(`orderAction('pickupRedeem',{code:${JSON.stringify(o.fulfillment.code)}})`);f.page.refreshOrder();await idle(f.page);assert.equal(f.page.data.selectedOrder.status,'COMPLETED');
  f.page.setData({deliveryMode:'PICKUP',pickupContact:{name:'模拟',phone:'13800000000'}});f.page.prepareCheckout();f.page.checkout();await idle(f.page);const cancelled=f.page.data.selectedOrder.id;assert.notEqual(cancelled,o.id);f.page.action(event({action:'cancel'}));await idle(f.page);
  assert.equal(f.page.data.selectedOrder.status,'CANCELLED');const snapshot=await f.store.snapshot();assert.equal(snapshot.orders.length,2);assert.equal(snapshot.products.find(p=>p.id==='toy').skus[0].stock,29);assert.deepEqual(f.errors,[]);
+}));
+
+test('三方联调：商家登记入库 → 小程序读取新库存 → 下单取消 → 流水与数据库一致',options,async()=>fixture(async f=>{
+ const identity=await f.m("api('identity')");assert.ok(identity.capabilities.includes('inventory-v1'));
+ const input={productId:'food',skuId:'food-1',revision:0,type:'RECEIVE',quantity:5,reason:'联调采购到货',requestKey:'fullstack-inventory'};
+ const movement=await f.m(`api('adjustStock',${JSON.stringify(input)})`);
+ assert.equal(movement.after,25);assert.equal((await f.api.call('catalog'))[0].skus[0].stock,25);
+ const o=await f.api.call('createOrder',{key:'fullstack-inventory-order',fulfillment:'PICKUP',contact:{name:'验收',phone:'13800000000'},lines:[{productId:'food',skuId:'food-1',qty:2}]});
+ assert.equal((await f.api.call('catalog'))[0].skus[0].stock,23);
+ await f.api.call('cancel',{id:o.id});assert.equal((await f.api.call('catalog'))[0].skus[0].stock,25);
+ assert.equal((await f.m(`api('adjustStock',${JSON.stringify(input)})`)).id,movement.id);
+ const history=await f.m("api('stockHistory',{productId:'food'})");assert.equal(history.total,1);assert.equal(history.items[0].delta,5);
+ await assert.rejects(f.api.call('adjustStock',input));await assert.rejects(f.api.call('stockHistory',{}));
+ const state=await f.store.snapshot();assert.equal(state.products[0].skus[0].stock,25);assert.equal(state.stockMovements.length,1);assert.equal(state.orders[0].status,'CANCELLED');
 }));

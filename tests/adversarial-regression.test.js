@@ -41,12 +41,12 @@ test('退货入库使旧编辑页失效，容量检查保留其他订单的回�
  let p=f.call('merchantProducts')[0];p.skus[0].stock=99999;f.call('saveProduct',p);
  const inspection={...ref,confirm:true,note:'完好',items:[{productId:'food',skuId:'food-1',receivedQty:1,restockQty:1}]};
  assert.throws(()=>f.call('returnInspect',inspection),/上限/);
- assert.equal(f.state.stockMovements.length,0);
+ assert.equal(f.state.stockMovements.filter(r=>r.type==='RETURN_INSPECTION').length,0);
  p=f.call('merchantProducts')[0];p.skus[0].stock=99998;f.call('saveProduct',p);
  const stale=f.call('merchantProducts')[0];f.call('returnInspect',inspection);f.call('returnInspect',inspection);
  assert.throws(()=>f.call('saveProduct',stale),/PRODUCT_REVISION_CONFLICT/);
  f.call('cancel',{id:pending.id},buyer);assert.equal(f.state.products[0].skus[0].stock,100000);
- assert.equal(f.state.stockMovements.length,1);
+ assert.equal(f.state.stockMovements.filter(r=>r.type==='RETURN_INSPECTION').length,1);
 });
 
 test('畸形 URL 和断开连接不终止 HTTP 服务，随后健康检查正常',async()=>{

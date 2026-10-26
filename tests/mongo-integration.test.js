@@ -45,3 +45,22 @@ test('真实 MongoDB：经营设置持久化、并发版本保护与履约快照
     assert.equal(await second.db.collection('audit_log').countDocuments({action:'saveShopSettings'}),2);
   }finally{await second.close();}
 }));
+
+test('真实 MongoDB：库存调整与下单并发，重试不覆盖库存、不重复入库',{skip:!enabled},async()=>fixture(async(store,database)=>{
+ const second=await MongoStore.connect({database});try{
+  const input={productId:'food',skuId:'food-1',revision:0,type:'RECEIVE',quantity:5,reason:'采购入库',requestKey:'mongo-inventory-once'};
+  const result=await Promise.all([store.execute(merchant,'adjustStock',input),second.execute(merchant,'adjustStock',input)]);
+  assert.equal(result[0].id,result[1].id);assert.equal((await store.snapshot()).products[0].skus[0].stock,25);
+  const count={...input,type:'COUNT',quantity:23,revision:1,requestKey:'mongo-inventory-count'};
+  const order={key:'inventory-race-order',fulfillment:'PICKUP',contact:addr,lines:[{productId:'food',skuId:'food-1',qty:1}]};
+  const race=await Promise.allSettled([store.execute(merchant,'adjustStock',count),second.execute(buyer,'createOrder',order)]);
+  assert.equal(race[1].status,'fulfilled');
+  if(race[0].status==='rejected')assert.match(race[0].reason.message,/PRODUCT_REVISION_CONFLICT/);
+  const state=await store.snapshot();assert.equal(state.products[0].skus[0].stock,race[0].status==='fulfilled'?22:24);
+  const history=await second.execute(merchant,'stockHistory',{productId:'food',pageSize:1});assert.equal(history.items.length,1);assert.equal(history.total,race[0].status==='fulfilled'?2:1);
+  assert.equal(await second.db.collection('stock_movements').countDocuments(),history.total);
+  // Old receipt key remains valid after subsequent order writes and reconnects.
+  const third=await MongoStore.connect({database});try{assert.equal((await third.execute(merchant,'adjustStock',input)).id,result[0].id);assert.equal((await third.snapshot()).products[0].skus[0].stock,state.products[0].skus[0].stock);}finally{await third.close();}
+  await assert.rejects(second.execute(buyer,'stockHistory',{}),/FORBIDDEN/);
+ }finally{await second.close();}
+}));

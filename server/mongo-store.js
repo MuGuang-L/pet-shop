@@ -1,6 +1,7 @@
 'use strict';
 const {MongoClient}=require('mongodb');
 const {seed,execute,orderQuery}=require('../cloudfunctions/shop/domain');
+const inventory=require('../cloudfunctions/shop/inventory');
 const {randomUUID,createHash}=require('node:crypto');
 const collections=['products','orders','address_books','idempotency_keys','payment_events','stock_movements'];
 const hash=s=>createHash('sha256').update(s).digest('hex');
@@ -28,6 +29,7 @@ class MongoStore{
   await this.db.collection('orders').createIndex({status:1,expiresAt:1});
   await this.db.collection('audit_log').createIndex({at:-1});
   await this.db.collection('stock_movements').createIndex({orderId:1,caseId:1});
+  await this.db.collection('stock_movements').createIndex({'value.productId':1,'value.at':-1,_id:-1});
   // Seed only once. An existing database is never reset at startup.
   const session=this.client.startSession();try{await transaction(session,async()=>{const meta=await this.db.collection('shop_meta').findOne({_id:'settings'},{session});if(meta){if(meta.schemaVersion!==1)throw Error('UNSUPPORTED_DATABASE_SCHEMA');return;}const state=seed();await this.db.collection('shop_meta').insertOne({_id:'settings',schemaVersion:1,revision:0,value:metadata(state)},{session});const docs=documents(state);for(const name of collections)if(docs[name].length)await this.db.collection(name).insertMany(docs[name],{session});});}finally{await session.endSession();}
  }
@@ -46,6 +48,7 @@ class MongoStore{
   await this.db.collection('audit_log').insertOne({_id:randomUUID(),at:new Date(),actor:actor.id,action,revision:meta.revision+1,orderIds:after.orders.filter(o=>!same(before.orders.find(p=>p.id===o.id),o)).map(o=>o.id)},{session});
  }
  async execute(actor,action,input={},options={mock:true}){
+  if(action==='stockHistory')return this.stockHistory(actor,input);
   if(action==='ordersPage'||action==='merchantOrdersPage')return this.orderPage(actor,action,input,options);
   const session=this.client.startSession();let result;try{await transaction(session,async()=>{const {state,meta}=await this.load(session);const out=execute(state,actor,action,input,options);await this.persist(state,out.state,meta,session,actor,action);result=out.result;},{readConcern:{level:'snapshot'},writeConcern:{w:'majority'}});return result;}finally{await session.endSession();}
  }
@@ -59,6 +62,18 @@ class MongoStore{
   if(args.fulfillment!=='ALL')filter['value.fulfillment.type']=args.fulfillment==='DELIVERY'?{$ne:'PICKUP'}:'PICKUP';
   if(args.q){const literal=args.q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');filter.$or=[{_id:{$regex:literal,$options:'i'}},{'value.lines.name':{$regex:literal,$options:'i'}}];}
   const session=this.client.startSession();let result;try{await transaction(session,async()=>{const col=this.db.collection('orders');const total=await col.countDocuments(filter,{session}),pages=Math.max(1,Math.ceil(total/args.pageSize)),page=Math.min(args.page,pages);const rows=await col.find(filter,{session}).sort({createdAt:-1,_id:-1}).skip((page-1)*args.pageSize).limit(args.pageSize).toArray();const paidCount=await col.countDocuments({...scope,status:'PAID'},{session});result={items:rows.map(x=>x.value),page,pageSize:args.pageSize,total,pages,paidCount};},{readConcern:{level:'snapshot'}});return result;}finally{await session.endSession();}
+ }
+ async stockHistory(actor,input){
+  if(!actor||typeof actor.id!=='string'||!actor.id)throw Error('AUTH_REQUIRED');
+  if(actor.merchant!==true)throw Error('FORBIDDEN');
+  const args=inventory.historyArgs(input),filter={};
+  if(args.productId)filter['value.productId']=args.productId;
+  if(args.type!=='ALL')filter['value.type']=args.type;
+  const session=this.client.startSession();let result;
+  try{await transaction(session,async()=>{const col=this.db.collection('stock_movements'),total=await col.countDocuments(filter,{session}),pages=Math.max(1,Math.ceil(total/args.pageSize)),page=Math.min(args.page,pages);
+    const rows=await col.find(filter,{session}).sort({'value.at':-1,_id:-1}).skip((page-1)*args.pageSize).limit(args.pageSize).toArray();
+    result={items:rows.map(r=>inventory.normalize(r.value)),total,pages,page,pageSize:args.pageSize};
+  },{readConcern:{level:'snapshot'}});return result;}finally{await session.endSession();}
  }
  async snapshot(){const session=this.client.startSession();let state;try{await transaction(session,async()=>{state=(await this.load(session)).state;},{readConcern:{level:'snapshot'}});return state;}finally{await session.endSession();}}
  async restore(state){

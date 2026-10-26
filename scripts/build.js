@@ -9,3 +9,5 @@ fs.copyFileSync(path.join(root,'cloudfunctions/shop/studio.js'),path.join(root,'
 
 fs.copyFileSync(path.join(root,'cloudfunctions/shop/aftersales.js'),path.join(root,'miniprogram/lib/aftersales.js'));
 fs.copyFileSync(path.join(root,'cloudfunctions/shop/shop-settings.js'),path.join(root,'miniprogram/lib/shop-settings.js'));
+
+fs.copyFileSync(path.join(root,'cloudfunctions/shop/inventory.js'),path.join(root,'miniprogram/lib/inventory.js'));

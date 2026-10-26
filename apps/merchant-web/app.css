@@ -227,3 +227,14 @@ button,input,select,textarea{border-radius:6px}
 /* Keep error feedback and recovery controls in the same sticky footer. */
 .editor-footer{flex-wrap:wrap}
 .editor-footer .modal-error{position:static;flex-basis:100%;font-size:12px;line-height:1.7;border-radius:5px}
+
+.inventory-heading h2{margin:8px 0 12px}.inventory-heading p{line-height:1.8}
+.inventory-form{margin-top:24px}.inventory-form fieldset{border:0;padding:0;margin:0;min-width:0}
+.inventory-form label{font-size:13px}.inventory-form input,.inventory-form select,.inventory-form textarea{margin:8px 0 20px;padding:11px 12px;width:100%;box-sizing:border-box}
+.inventory-form textarea{min-height:80px}.inventory-form .two-fields{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.inventory-help{font-size:12px;line-height:1.8;color:#68795f;background:#f0f4e9;padding:12px 16px;border-left:3px solid #809774}
+.inventory-preview{font-size:17px;color:#284b3c;padding:12px 0}.inventory-form .editor-footer small{line-height:1.7;flex:1;min-width:180px}
+.inventory-history{border-top:1px solid #e2e8db;margin-top:24px;padding-top:20px}.inventory-history h3{font-size:16px}.inventory-history .muted{font-size:12px;line-height:1.8}.inventory-history td{font-size:12px;vertical-align:top;overflow-wrap:anywhere}
+.inventory-pages{display:flex;gap:10px;align-items:center;margin-top:16px;font-size:12px}.inventory-pages span{margin-right:auto}
+input[readonly]{background:#f2f3ee;color:#7c8575}
+@media(max-width:540px){.inventory-form .two-fields{grid-template-columns:1fr;gap:0}.inventory-pages{flex-wrap:wrap}}

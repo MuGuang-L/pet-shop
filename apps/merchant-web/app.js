@@ -1,6 +1,6 @@
 const studio=Studio,role='merchant';let tab='orders',storefront={...studio.defaults},homeContent={...studio.homeDefaults},storeDraft=null,orderSearch='',orderStatus='ALL',orderPageNumber=1,fulfillmentFilter='ALL',currentOrder=null,editing=null,adminProducts=[];
 let viewRevision=0,productQuery='',productCategory='ALL',productState='ALL',productSort='default',savingProduct=false;
-let savingOrder=false;
+let savingOrder=false,inventoryAvailable=false;
 let orderQueue='todo',modalDirty=false,modalKind='',pendingUploads=0,skuSequence=0,originalSkuIds=new Set(),discardAction=null;
 const $=id=>document.getElementById(id),money=n=>(n/100).toFixed(2),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const states={PENDING:'待付款',PAID:'待履约',SHIPPED:'待收货',COMPLETED:'已完成',CANCELLED:'已取消',EXPIRED:'已超时',REFUND_REQUESTED:'售后申请中',REFUNDING:'退款处理中',REFUNDED:'已退款'};
@@ -8,8 +8,8 @@ const art=p=>p.image||'/assets/'+(['food','toy','care'].includes(p.id||p.product
 const homeFields=[['headline','首页大标题',24],['subtitle','首页副标题',40],['featuredTitle','精选栏目标题',18],['featuredIntro','精选栏目说明',60],['newTitle','上新栏目标题',18]];
 
 // Only repeat reads. An interrupted write may already have committed.
-const readActions=new Set(['catalog','storefront','homeContent','identity','merchantProducts','merchantOrders','merchantOrdersPage','order','tracking','shopSettings','quoteOrder']);
-const requestMessages={CREATE_REQUEST_CONFLICT:'上次新增可能已保存。请先关闭编辑并刷新商品列表核对，不要改动原请求重复新增。',AUTH_REQUIRED:'请先登录',FORBIDDEN:'此账号没有商家权限',INVALID_CREDENTIALS:'账号或密码不正确',LOGIN_RATE_LIMIT:'尝试过多，请稍后再试',PRODUCT_REVISION_CONFLICT:'商品或库存已变化，本次未保存。请保留需要的编辑内容，重新打开商品后核对库存再保存。',PRODUCT_NAME:'请填写商品名称（最多 80 字）',INVALID_STOCK:'库存须为 0 到 100000 的整数',SKU_NAME:'请填写每个规格的名称',INVALID_PRICE:'请检查售价，金额须大于 0 且最多两位小数',RESERVED_SKU_CANNOT_REMOVE:'该规格仍有未结束订单，请保留原规格',INVALID_STATE:'订单状态已变化，请刷新后重试'};
+const readActions=new Set(['stockHistory','catalog','storefront','homeContent','identity','merchantProducts','merchantOrders','merchantOrdersPage','order','tracking','shopSettings','quoteOrder']);
+const requestMessages={STOCK_REQUEST_CONFLICT:'该提交编号已用于另一笔调整，请核对记录后再操作。',INVALID_STOCK_TYPE:'请选择入库、盘点或报损。',INVALID_STOCK_QUANTITY:'数量须为有效整数；盘点可填 0，入库和报损须大于 0。',STOCK_REASON_REQUIRED:'请填写调整原因，最多 200 字。',INSUFFICIENT_AVAILABLE_STOCK:'报损数量超过可售库存，请核对已被订单占用的商品。',STOCK_CAPACITY_EXCEEDED:'可售库存加订单预留数量不能超过 100000 件。',CREATE_REQUEST_CONFLICT:'上次新增可能已保存。请先关闭编辑并刷新商品列表核对，不要改动原请求重复新增。',AUTH_REQUIRED:'请先登录',FORBIDDEN:'此账号没有商家权限',INVALID_CREDENTIALS:'账号或密码不正确',LOGIN_RATE_LIMIT:'尝试过多，请稍后再试',PRODUCT_REVISION_CONFLICT:'商品或库存已变化，本次未保存。请保留需要的编辑内容，重新打开商品后核对库存再保存。',PRODUCT_NAME:'请填写商品名称（最多 80 字）',INVALID_STOCK:'库存须为 0 到 100000 的整数',SKU_NAME:'请填写每个规格的名称',INVALID_PRICE:'请检查售价，金额须大于 0 且最多两位小数',RESERVED_SKU_CANNOT_REMOVE:'该规格仍有未结束订单，请保留原规格',INVALID_STATE:'订单状态已变化，请刷新后重试'};
 async function requestOnce(url,body){
   const controller=new AbortController();let timer;
   try{
@@ -21,7 +21,7 @@ async function requestOnce(url,body){
     if([408,429,500,502,503,504].includes(result.status))throw Error('TEMPORARILY_UNAVAILABLE');
     const out=result.out;
     if(!out||typeof out.ok!=='boolean')throw Error('INVALID_RESPONSE');
-    if(result.status!==200||!out.ok)throw Object.assign(Error(requestMessages[out.error]||out.error||'操作未完成'),{business:true});
+    if(result.status!==200||!out.ok)throw Object.assign(Error(requestMessages[out.error]||out.error||'操作未完成'),{business:true,code:out.error});
     if(!(url==='/upload'?'path' in out:'data' in out))throw Error('INVALID_RESPONSE');
     return url==='/upload'?out.path:out.data;
   }catch(e){if(e.business)throw e;throw Object.assign(Error('网络或服务暂时不可用'),{retryable:true});}
@@ -39,7 +39,7 @@ async function api(action,input={}){return request('/api',{action,input});}
 function loginScreen(){viewRevision++;modalDirty=false;modalKind='';discardAction=null;$('discard-dialog').close();$('workspace').hidden=true;$('login').hidden=false;$('modal').close();}
 async function login(e){e.preventDefault();const button=$('login-button');button.disabled=true;try{const out=await request('/auth/login',{username:$('username').value,password:$('password').value});if(!out.identity.merchant){await request('/auth/logout');throw Error('请使用商家账号登录；买家账号用于小程序。');}$('password').value='';await boot();}catch(e){$('login-error').textContent=e.message;}finally{button.disabled=false;}}
 async function logout(){if($('modal').open&&!closeModal())return;await request('/auth/logout');loginScreen();}
-async function boot(){try{const me=await request('/auth/me');if(!me.merchant)return loginScreen();$('login').hidden=true;$('workspace').hidden=false;$('operator').textContent=me.username;await show();}catch(e){loginScreen();}}
+async function boot(){try{const me=await request('/auth/me');if(!me.merchant)return loginScreen();const features=await api('identity');inventoryAvailable=features.capabilities?.includes('inventory-v1')===true;$('login').hidden=true;$('workspace').hidden=false;$('operator').textContent=me.username;await show();}catch(e){loginScreen();}}
 
 async function show(next=tab){
   tab=next;const revision=++viewRevision;
@@ -102,7 +102,7 @@ function renderProductResults(){
   const items=filteredProducts(adminProducts,productQuery,productCategory,productState,productSort);
   document.querySelectorAll('[data-product-state]').forEach(n=>n.setAttribute('aria-pressed',String(n.dataset.productState===productState)));
   $('product-count').textContent=`${items.length} / ${adminProducts.length} 件商品`;
-  $('product-results').innerHTML=items.length?`<div class="table-scroll"><table class="product-table"><thead><tr><th scope="col">商品 / 规格</th><th scope="col">售价</th><th scope="col">可售库存</th><th scope="col">状态</th><th scope="col" class="align-right">操作</th></tr></thead><tbody>${items.map(p=>{const f=productFacts(p);return `<tr><td><div class="product-identity"><img src="${esc(art(p))}" alt="" loading="lazy"><div><strong>${esc(p.name)}</strong><p>${esc(p.category)} · ${esc(studio.petOf(p))}</p><small>${p.skus.length} 个规格 · ${p.skus.map(s=>esc(s.name)).join(' / ')}</small></div></div></td><td class="price-cell">¥${money(f.min)}${f.max!==f.min?'<small>起</small>':''}</td><td><strong class="${f.low?'stock-warning':''}">${f.stock}</strong><small class="cell-note">${f.stock===0?'暂无可售库存':f.low?'部分规格 ≤ 5 件':'库存充足'}</small></td><td><span class="badge ${p.active?'success':'neutral'}">${p.active?'上架中':'草稿'}</span></td><td><div class="table-actions"><button data-id="${esc(p.id)}" onclick="editor(this.dataset.id)">编辑</button><button class="text-button" data-id="${esc(p.id)}" onclick="duplicateProduct(this.dataset.id)">复制</button></div></td></tr>`;}).join('')}</tbody></table></div>`:'<div class="empty-state"><span class="service-icon">'+lineIcon('box')+'</span><h3>没有符合条件的商品</h3><p>换一个关键词，或清除筛选查看全部商品。</p><button onclick="resetProducts()">清除筛选</button><button class="primary" onclick="editor()">新增商品</button></div>';
+  $('product-results').innerHTML=items.length?`<div class="table-scroll"><table class="product-table"><thead><tr><th scope="col">商品 / 规格</th><th scope="col">售价</th><th scope="col">可售库存</th><th scope="col">状态</th><th scope="col" class="align-right">操作</th></tr></thead><tbody>${items.map(p=>{const f=productFacts(p);return `<tr><td><div class="product-identity"><img src="${esc(art(p))}" alt="" loading="lazy"><div><strong>${esc(p.name)}</strong><p>${esc(p.category)} · ${esc(studio.petOf(p))}</p><small>${p.skus.length} 个规格 · ${p.skus.map(s=>esc(s.name)).join(' / ')}</small></div></div></td><td class="price-cell">¥${money(f.min)}${f.max!==f.min?'<small>起</small>':''}</td><td><strong class="${f.low?'stock-warning':''}">${f.stock}</strong><small class="cell-note">${f.stock===0?'暂无可售库存':f.low?'部分规格 ≤ 5 件':'库存充足'}</small></td><td><span class="badge ${p.active?'success':'neutral'}">${p.active?'上架中':'草稿'}</span></td><td><div class="table-actions"><button data-id="${esc(p.id)}" onclick="editor(this.dataset.id)">编辑</button><button data-id="${esc(p.id)}" onclick="stockEditor(this.dataset.id)" ${inventoryAvailable?'':'disabled title="库存登记等待服务更新"'}>库存</button><button class="text-button" data-id="${esc(p.id)}" onclick="duplicateProduct(this.dataset.id)">复制</button></div></td></tr>`;}).join('')}</tbody></table></div>`:'<div class="empty-state"><span class="service-icon">'+lineIcon('box')+'</span><h3>没有符合条件的商品</h3><p>换一个关键词，或清除筛选查看全部商品。</p><button onclick="resetProducts()">清除筛选</button><button class="primary" onclick="editor()">新增商品</button></div>';
 }
 function resetProducts(){productQuery='';productCategory='ALL';productState='ALL';productSort='default';$('app').innerHTML=productsPage();renderProductResults();}
 function storePage(){return `<div class="store-preview"><div class="store-preview-copy"><h2>首页预览</h2><p>展示当前保存的主图与标题。<br>修改后需点击保存才会生效。</p><span class="badge neutral">当前已保存的内容</span></div><div class="shop-preview-card"><img src="${esc(storefront.hero)}" alt="当前首页主视觉"><div><small>爪爪小铺</small><h3>${esc(homeContent.headline).replace(/\n/g,'<br>')}</h3><p>${esc(homeContent.subtitle)}</p></div></div></div>
@@ -172,13 +172,13 @@ function renderEditor(){modal(`<div class="editor-heading"><h2>${editing.id?'编
 <div class="two-fields"><label>商品分类<select id="category">${['主粮','零食','玩具','清洁','用品'].map(c=>`<option ${c===editing.category?'selected':''}>${c}</option>`).join('')}</select></label><label>适用宠物<select id="pet-scope">${studio.pets.map(v=>`<option ${studio.petOf(editing)===v?'selected':''}>${v}</option>`).join('')}</select></label></div>
 <label class="switch-row">加入店主精选<input id="featured" type="checkbox" ${studio.featuredOf(editing)?'checked':''}></label><label>店主推荐语 <span class="optional">选填</span><input id="pick-note" maxlength="80" value="${esc(editing.pickNote)}" placeholder="说说这件好物适合怎样的日常"></label><label>商品说明<textarea id="description" rows="7" maxlength="2000" placeholder="材质、适用宠物、使用与保养方式…">${esc(editing.description)}</textarea></label></section>
 <section class="editor-section" id="edit-images"><div class="editor-section-title"><span>02</span><div><h3>图片与封面</h3><p>支持实拍上传与备选图库，最多 6 张。</p></div></div>${imageControl('product',editing.image||art(editing))}<div id="product-gallery">${productGallery()}</div></section>
-<section class="editor-section" id="edit-skus"><div class="editor-section-title"><span>03</span><div><h3>规格、价格与库存</h3><p>每个规格单独设置价格和可售数量。</p></div></div><div class="sku-table-head" aria-hidden="true"><span>规格名称</span><span>售价 / 元</span><span>可售库存</span><span></span></div><div id="sku-fields">${editing.skus.map((k,i)=>skuFields(k,i)).join('')}</div><div class="sku-batch"><label>统一售价<input id="batch-price" type="number" min="0.01" max="100000" step="0.01" placeholder="选填"></label><button type="button" onclick="applySkuPrice()">应用到全部规格</button></div><button type="button" class="add-spec" onclick="addEditorSku()">＋ 添加规格</button><div class="publish-option"><div><label for="active">上架销售</label><p>关闭时保存为草稿；开启后小程序侧可见。</p></div><input id="active" type="checkbox" ${editing.active?'checked':''}></div></section></fieldset><div class="editor-footer"><small id="draft-state" role="status">尚未修改</small><button type="button" onclick="closeModal()">取消</button><button id="save-product" class="primary">保存商品</button></div></form>`,false,'product');}
+<section class="editor-section" id="edit-skus"><div class="editor-section-title"><span>03</span><div><h3>规格、价格与库存</h3><p>新规格可填写初始库存；已有规格从商品列表的「库存」入口调整。</p></div></div><div class="sku-table-head" aria-hidden="true"><span>规格名称</span><span>售价 / 元</span><span>可售库存</span><span></span></div><div id="sku-fields">${editing.skus.map((k,i)=>skuFields(k,i)).join('')}</div><div class="sku-batch"><label>统一售价<input id="batch-price" type="number" min="0.01" max="100000" step="0.01" placeholder="选填"></label><button type="button" onclick="applySkuPrice()">应用到全部规格</button></div><button type="button" class="add-spec" onclick="addEditorSku()">＋ 添加规格</button><div class="publish-option"><div><label for="active">上架销售</label><p>关闭时保存为草稿；开启后小程序侧可见。</p></div><input id="active" type="checkbox" ${editing.active?'checked':''}></div></section></fieldset><div class="editor-footer"><small id="draft-state" role="status">尚未修改</small><button type="button" onclick="closeModal()">取消</button><button id="save-product" class="primary">保存商品</button></div></form>`,false,'product');}
 
 function captureEditor(){Object.assign(editing,{name:$('pname').value,petScope:$('pet-scope').value,featured:$('featured').checked,pickNote:$('pick-note').value,category:$('category').value,description:$('description').value,active:$('active').checked,skus:editing.skus.map((k,i)=>({...k,name:$('sku-name-'+i).value,priceYuan:$('sku-price-'+i).value,stock:$('sku-stock-'+i).value}))});}
 function changeTemplate(id){if(savingProduct)return;if(modalDirty){askDiscard(()=>{editor(null,id);markDirty();});return;}editor(null,id);markDirty();}
 function duplicateProduct(id){editing=JSON.parse(JSON.stringify(adminProducts.find(p=>p.id===id)));delete editing.id;editing.name+='（副本）';editing.active=false;editing.skus=editing.skus.map((k,i)=>({...k,id:'sku-'+Date.now()+'-'+i,stock:0}));originalSkuIds=new Set();renderEditor();markDirty();}
 
-function skuFields(k,i){return `<div class="sku-editor"><label><span class="sku-label">规格 ${i+1}</span><input id="sku-name-${i}" aria-label="规格 ${i+1} 名称" value="${esc(k.name)}" maxlength="80" required placeholder="如：薄荷绿 / M"></label><label><span class="sku-label">售价（元）</span><input id="sku-price-${i}" aria-label="规格 ${i+1} 售价" type="number" min="0.01" max="100000" step="0.01" value="${esc(k.priceYuan??money(k.price))}" required></label><label><span class="sku-label">可售库存</span><input id="sku-stock-${i}" aria-label="规格 ${i+1} 库存" type="number" min="0" max="100000" step="1" value="${esc(k.stock)}" required></label><button type="button" class="text-button" ${originalSkuIds.has(k.id)&&editing.id?'disabled title="已有规格保留编号，停售可将库存设为 0"':''} onclick="removeEditorSku(${i})" aria-label="移除规格 ${i+1}">移除</button></div>`;}
+function skuFields(k,i){return `<div class="sku-editor"><label><span class="sku-label">规格 ${i+1}</span><input id="sku-name-${i}" aria-label="规格 ${i+1} 名称" value="${esc(k.name)}" maxlength="80" required placeholder="如：薄荷绿 / M"></label><label><span class="sku-label">售价（元）</span><input id="sku-price-${i}" aria-label="规格 ${i+1} 售价" type="number" min="0.01" max="100000" step="0.01" value="${esc(k.priceYuan??money(k.price))}" required></label><label><span class="sku-label">可售库存</span><input id="sku-stock-${i}" aria-label="规格 ${i+1} 库存" type="number" min="0" max="100000" step="1" value="${esc(k.stock)}" ${inventoryAvailable&&originalSkuIds.has(k.id)&&editing.id?'readonly title="已有规格请从商品列表的库存入口调整"':''} required></label><button type="button" class="text-button" ${originalSkuIds.has(k.id)&&editing.id?'disabled title="已有规格保留编号，库存请从库存入口调整"':''} onclick="removeEditorSku(${i})" aria-label="移除规格 ${i+1}">移除</button></div>`;}
 function redrawSkus(){$('sku-fields').innerHTML=editing.skus.map(skuFields).join('');}
 function addEditorSku(){
   if(savingProduct)return;if(editing.skus.length>=20)throw Error('最多添加 20 个规格');
@@ -235,4 +235,69 @@ async function saveHome(e){e.preventDefault();const h={};for(const [k] of homeFi
 function lineIcon(name){const paths={box:'<path d="m3 7 9-4 9 4-9 4-9-4v10l9 4 9-4V7M12 11v10M7 5l10 4"/>',pin:'<path d="M19 10c0 5-7 11-7 11S5 15 5 10a7 7 0 1 1 14 0Z"/><circle cx="12" cy="10" r="2"/>',shop:'<path d="M4 10v11h16V10M3 3h18l1 7H2l1-7ZM9 21v-7h6v7"/>',truck:'<path d="M2 5h12v12H2ZM14 10h5l3 4v3h-8"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="18" r="2"/>',clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v6l4 2"/>',heart:'<path d="M12 21 3 12C-2 4 8 0 12 7c4-7 14-3 9 5Z"/>'};return `<svg viewBox="0 0 24 24" aria-hidden="true">${paths[name]||paths.box}</svg>`;}
 function fulfillmentCard(o){const f=o.fulfillment||{type:'DELIVERY'},pickup=f.type==='PICKUP';return `<section class="fulfillment-card"><div class="fulfillment-top"><span class="service-icon">${lineIcon(pickup?'shop':'truck')}</span><div><h3>${pickup?'到店自提':'商家外送'}</h3></div><span class="tag">${studio.fulfillmentLabel(o)||states[o.status]}</span></div><div class="fulfillment-body"><h4>${esc(pickup?f.store.name:o.address.detail)}</h4>${pickup?`<p>${esc(f.store.detail)}<br>${esc(f.store.hours)}</p>`:''}<p>${esc(o.address.name)} · ${esc(o.address.phone)}</p>${pickup&&o.status==='PAID'&&role==='buyer'?`<div class="pickup-pass"><small>${f.readyAt?'已备好，可以来取啦':'正在备货，请稍候到店'}</small><strong>${f.code}</strong><span>到店后向商家出示提货码</span></div>`:''}${!pickup&&o.shipping?`<div class="delivery-slip"><small>商家配送单号</small><strong>${esc(o.shipping.number||'未填写单号')}</strong>${o.shipping.note?`<p>${esc(o.shipping.note)}</p>`:''}</div>`:''}<div class="journey"><span class="done">下单</span><i></i><span class="${o.status!=='PENDING'?'done':''}">备货</span><i></i><span class="${f.readyAt||o.shipping?'done':''}">${pickup?'待自提':'已送出'}</span><i></i><span class="${o.status==='COMPLETED'?'done':''}">完成</span></div></div></section>`;}
 function merchantFulfillment(o){if(role!=='merchant'||o.status!=='PAID')return '';if(o.fulfillment?.type==='PICKUP')return `<section class="panel"><h3>${o.fulfillment.readyAt?'到店核销':'准备自提商品'}</h3>${o.fulfillment.readyAt?`<label>买家出示的提货码<input id="redeem-code" inputmode="numeric" maxlength="6" placeholder="输入 6 位提货码"></label><button class="primary full" onclick="orderAction('pickupRedeem',{code:$('redeem-code').value})">核销并完成自提</button>`:`<p class="muted">核对商品后标记备好，买家订单将显示可到店领取。</p><button class="primary full" onclick="orderAction('pickupReady')">商品已备好，可到店自提</button>`}</section>`;return `<section class="panel"><h3>安排商家外送</h3><p class="muted">自行安排送货，登记单号或备注即可。</p><label>配送单号<input id="number" maxlength="40" placeholder="如 SD20261024（选填）"></label><label>配送备注<textarea id="delivery-note" maxlength="200" placeholder="如店员配送，约下午送达（与单号至少填一项）"></textarea></label><button class="primary full" onclick="ship()">确认已送出</button></section>`;}
+
+const stockTypes={RECEIVE:'进货入库',COUNT:'可售库存盘点',LOSS:'报损出库',INITIAL:'初始入库',PRODUCT_EDIT:'商品编辑调整',RETURN_INSPECTION:'退货验收'};
+let stockDraft=null,stockHistoryRevision=0;
+function stockPendingKey(){return 'pet-stock-pending-'+$('operator').textContent;}
+function stockPending(){const raw=sessionStorage.getItem(stockPendingKey());return raw?JSON.parse(raw):null;}
+async function stockEditor(id){
+  if(!inventoryAvailable)throw Error('库存登记等待服务更新，现有商品编辑仍可使用。');
+  if($('modal').open&&!closeModal())return;
+  const pending=stockPending();
+  if(pending)id=pending.productId;
+  const products=await api('merchantProducts'),product=products.find(p=>p.id===id);
+  if(!product)throw Error('商品不存在，请刷新商品列表。');
+  stockDraft={product,pending};
+  modal(`<div class="inventory-heading"><span class="eyebrow">库存管理</span><h2>${esc(product.name)}</h2><p class="muted">进货、盘点与报损分别登记，保存后同步小程序可售库存。</p></div>
+  <form class="inventory-form" onsubmit="saveStock(event)"><fieldset id="stock-fields" ${pending?'disabled':''}>
+  <label>规格<select id="stock-sku" onchange="stockPreview()">${product.skus.map(s=>`<option value="${esc(s.id)}" ${pending?.skuId===s.id?'selected':''}>${esc(s.name)} · 可售 ${s.stock} 件</option>`).join('')}</select></label>
+  <div class="two-fields"><label>操作类型<select id="stock-type" onchange="stockPreview()">${['RECEIVE','COUNT','LOSS'].map(t=>`<option value="${t}" ${pending?.type===t?'selected':''}>${stockTypes[t]}</option>`).join('')}</select></label><label><span id="stock-quantity-label">入库数量</span><input id="stock-quantity" type="number" min="1" max="100000" step="1" required value="${esc(pending?.quantity??'')}" oninput="stockPreview()"></label></div>
+  <p class="inventory-help">盘点只填未被订单占用的可售数量。已下单待付款、待发货或待自提的商品要单独留出，不能再次算入可售库存。</p>
+  <label>原因 / 单据备注<textarea id="stock-reason" maxlength="200" required placeholder="如：采购到货 12 件，进货单 JH1026；或包装破损 1 件">${esc(pending?.reason||'')}</textarea></label>
+  <p id="stock-preview" class="inventory-preview" role="status"></p></fieldset>
+  <div class="editor-footer"><small id="stock-feedback" role="status">${pending?'有待确认的提交。点击核对原提交，不会重复增减。':'保存后不可删除流水；更正需另作一笔调整。'}</small><button type="button" onclick="closeModal()">关闭</button><button id="stock-submit" class="primary">${pending?'核对原提交':'确认保存'}</button></div></form>
+  <section class="inventory-history"><h3>库存记录</h3><p class="muted">记录人工调整与退货入库。下单占用及取消释放可在对应订单核对。</p><div id="stock-history" aria-live="polite">正在读取记录…</div></section>`,false,'inventory');
+  if(pending)modalDirty=true;else stockPreview();
+  await stockHistory();
+}
+function stockPreview(){
+  if(!stockDraft||stockDraft.pending)return;
+  const sku=stockDraft.product.skus.find(s=>s.id===$('stock-sku').value),type=$('stock-type').value,raw=$('stock-quantity').value,quantity=Number(raw);
+  $('stock-quantity').min=type==='COUNT'?'0':'1';
+  $('stock-quantity-label').textContent=type==='COUNT'?'盘点后可售数量':type==='LOSS'?'报损数量':'入库数量';
+  const after=sku&&(type==='COUNT'?quantity:sku.stock+(type==='LOSS'?-quantity:quantity));
+  $('stock-preview').textContent=raw!==''&&sku&&Number.isSafeInteger(quantity)?`可售 ${sku.stock} 件 → ${after} 件`:'填写数量后查看变更';
+}
+async function saveStock(event){
+  event.preventDefault();if(savingProduct)return;
+  const draft=stockDraft;
+  if(!draft.pending){
+    const quantity=Number($('stock-quantity').value),type=$('stock-type').value,reason=$('stock-reason').value.trim();
+    if($('stock-quantity').value===''||!Number.isSafeInteger(quantity)||quantity<(type==='COUNT'?0:1)||quantity>100000)throw Error('请填写有效的整数数量。');
+    if(!reason)throw Error('请填写调整原因或单据备注。');
+    draft.pending={productId:draft.product.id,skuId:$('stock-sku').value,revision:draft.product.revision,type,quantity,reason,requestKey:'stock-'+crypto.randomUUID()};
+    // Persist before sending. A page reload must not turn an uncertain write into a new adjustment.
+    try{sessionStorage.setItem(stockPendingKey(),JSON.stringify(draft.pending));}catch{draft.pending=null;throw Error('浏览器无法保存提交记录，请允许本站会话存储后再操作。');}
+  }
+  savingProduct=true;modalDirty=true;$('stock-fields').disabled=true;$('stock-submit').disabled=true;
+  try{
+    const result=await api('adjustStock',draft.pending);sessionStorage.removeItem(stockPendingKey());draft.pending=null;
+    closeModal(true);await show('products');notifySaved(`${stockTypes[result.type]}已登记：${result.spec}，${result.before} → ${result.after} 件`);
+  }catch(e){
+    if(e.business&&e.code&&e.code!=='STOCK_REQUEST_CONFLICT'){sessionStorage.removeItem(stockPendingKey());draft.pending=null;}
+    $('stock-feedback').textContent=draft.pending?'结果待确认，保留了原提交。再次点击可安全核对；不要另开窗口重复登记。':'本次未保存。库存有变化时请关闭窗口，重新核对数量后再登记。';
+    error(e);
+  }finally{
+    savingProduct=false;
+    if($('modal').open&&stockDraft===draft){$('stock-fields').disabled=!!draft.pending;$('stock-submit').disabled=false;$('stock-submit').textContent=draft.pending?'核对原提交':'确认保存';}
+  }
+}
+async function stockHistory(page=1){
+  const product=stockDraft.product,revision=++stockHistoryRevision;
+  try{
+    const data=await api('stockHistory',{productId:product.id,page,pageSize:5});
+    if(revision!==stockHistoryRevision||stockDraft.product!==product||modalKind!=='inventory')return;
+    $('stock-history').innerHTML=data.items.length?`<div class="table-scroll"><table><thead><tr><th>时间 / 操作</th><th>规格</th><th>变动</th><th>原因 / 操作人</th></tr></thead><tbody>${data.items.map(r=>`<tr><td>${esc(new Date(r.at).toLocaleString('zh-CN'))}<small class="cell-note">${stockTypes[r.type]||esc(r.type)}${r.orderId?' · '+esc(r.orderId):''}</small></td><td>${esc(r.spec)}</td><td><strong>${r.delta>0?'+':''}${r.delta}</strong><small class="cell-note">${r.before===undefined?'可售入库':r.before+' → '+r.after}</small></td><td>${esc(r.reason)}<small class="cell-note">${esc(r.actor)}</small></td></tr>`).join('')}</tbody></table></div><div class="inventory-pages"><span>第 ${data.page} / ${data.pages} 页 · ${data.total} 条</span><button type="button" ${data.page<=1?'disabled':''} onclick="stockHistory(${data.page-1})">上一页</button><button type="button" ${data.page>=data.pages?'disabled':''} onclick="stockHistory(${data.page+1})">下一页</button></div>`:'<p class="muted">暂无人工调整或退货入库记录。</p>';
+  }catch(e){if(revision===stockHistoryRevision&&modalKind==='inventory')$('stock-history').innerHTML=`<p>${esc(e.message)}</p><button onclick="stockHistory(${page})">重新读取记录</button>`;}
+}
 boot();
