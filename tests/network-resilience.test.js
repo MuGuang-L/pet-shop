@@ -30,6 +30,12 @@ function buyer(handler){const storage={'pet-shop-session-v2':{apiBase:'https://s
  const context={wx,module:{exports:{}},require:()=>({apiBase:'https://shop.example.test'}),setTimeout:(fn)=>setTimeout(fn,1)};
  vm.runInNewContext(fs.readFileSync(require.resolve('../miniprogram/services/api'),'utf8'),context);return {api:context.module.exports,calls,storage};
 }
+test('小程序地址校验显示中文说明，保留错误码且不重试保存',async()=>{
+ for(const [code,message] of [['ADDRESS_NAME','请填写收货人姓名，最多 40 个字'],['ADDRESS_PHONE','请填写 11 位手机号码'],['ADDRESS_DETAIL','请填写 5～200 个字的详细地址'],['ADDRESS_REQUIRED','请选择收货地址']]){
+  const f=buyer(o=>o.success({statusCode:400,data:{ok:false,error:code}}));
+  await assert.rejects(f.api.call('saveAddress',{}),e=>e.message===message&&e.code===code&&e.definitive===true);assert.equal(f.calls.length,1);
+ }
+});
 test('小程序断网读取可恢复，下单超时不自动重发并保留不确定标记',async()=>{
  const f=buyer((o,n)=>n===1?o.fail({errMsg:'timeout'}):o.success({statusCode:200,data:{ok:true,data:[]}}));
  await f.api.call('catalog');assert.equal(f.calls.length,2);assert.equal(f.calls[0].timeout,15000);
