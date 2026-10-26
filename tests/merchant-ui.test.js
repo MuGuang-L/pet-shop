@@ -321,3 +321,22 @@ test('经营设置表单校验、失败保留草稿，成功后买家可读相�
   f.node('setting-fee').value='6.50';fail=false;await f.run('saveShopSettings({preventDefault(){}})');
   assert.equal(f.node('modal').open,false);assert.match(f.node('notice').textContent,/经营设置已保存/);assert.equal(f.buyer('shopSettings',{}).delivery.fee,650);assert.equal(f.buyer('shopSettings',{}).store.name,'测试门店');
 });
+
+
+test('履约进度保留已发生的自提和收货，售后不抹去完成记录，未付款关闭不显示已备货',async()=>{
+ const f=fixture();
+ const input={key:'journey-pickup',fulfillment:'PICKUP',contact:{name:'模拟',phone:'13800000000'},lines:[{productId:'toy',skuId:'toy-1',qty:1}]};
+ const order=f.buyer('createOrder',input);f.buyer('mockPay',{id:order.id});
+ await f.run(`api('pickupReady',{id:${JSON.stringify(order.id)}})`);
+ const ready=f.buyer('order',{id:order.id});await f.run(`api('pickupRedeem',${JSON.stringify({id:order.id,code:ready.fulfillment.code})})`);
+ f.buyer('refundRequest',{id:order.id,type:'RETURN_REFUND',reason:'测试自提完成后售后'});
+ const after=f.buyer('order',{id:order.id});const html=f.run(`fulfillmentCard(${JSON.stringify(after)})`);
+ assert.match(html,/<span class="done">完成<\/span>/);
+ const delivered={...after,fulfillment:{type:'DELIVERY'},shipping:{number:'TEST-DELIVERY'},refund:{...after.refund,previous:'COMPLETED'}};
+ assert.match(f.run(`fulfillmentCard(${JSON.stringify(delivered)})`),/<span class="done">完成<\/span>/);
+ const completedHistory={...delivered,refund:{...delivered.refund,previous:'REFUNDED'},refundHistory:[{previous:'COMPLETED'}]};
+ assert.match(f.run(`fulfillmentCard(${JSON.stringify(completedHistory)})`),/<span class="done">完成<\/span>/);
+ const pending=f.buyer('createOrder',{...input,key:'journey-cancelled'});f.buyer('cancel',{id:pending.id});
+ const cancelled=f.buyer('order',{id:pending.id});const closed=f.run(`fulfillmentCard(${JSON.stringify(cancelled)})`);
+ assert.match(closed,/<span class="">备货<\/span>/);assert.match(closed,/<span class="">完成<\/span>/);
+});
