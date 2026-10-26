@@ -84,6 +84,9 @@ npm.cmd test
 - [联调配置](docs/COLLABORATION.md)
 - [三方联调分支与验收](docs/FULL-STACK-INTEGRATION.md)
 - [小程序侧 API](docs/BUYER-API.md)
+- [库存入库与盘点](docs/INVENTORY.md)
+- [备份与恢复](docs/BACKUP-RECOVERY.md)
+- [上线前验收清单](docs/PRELAUNCH-ACCEPTANCE.md)
 - [上游兼容性](UPSTREAM-COMPATIBILITY.md)
 - [第三方说明](THIRD_PARTY_NOTICES.md)
 

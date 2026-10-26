@@ -1,6 +1,6 @@
 'use strict';
 const crypto=require('node:crypto'),fs=require('node:fs'),path=require('node:path');
-const location=path.join(__dirname,'../.local/auth/accounts.json');
+const location=path.join(require('./data-paths').dataDirectory,'auth/accounts.json');
 const hash=(password,salt)=>crypto.scryptSync(password,salt,32).toString('hex');
 function createAccount(username,password,role,id){const salt=crypto.randomBytes(16).toString('hex');return {username,role,id,salt,hash:hash(password,salt)};}
 function loadAccounts(){if(!fs.existsSync(location))throw Error('Run npm run setup:accounts first');return JSON.parse(fs.readFileSync(location,'utf8'));}

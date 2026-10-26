@@ -76,11 +76,26 @@ class MongoStore{
   },{readConcern:{level:'snapshot'}});return result;}finally{await session.endSession();}
  }
  async snapshot(){const session=this.client.startSession();let state;try{await transaction(session,async()=>{state=(await this.load(session)).state;},{readConcern:{level:'snapshot'}});return state;}finally{await session.endSession();}}
- async restore(state){
-  if(!this.db.databaseName.startsWith('pet_shop_restore_'))throw Error('RESTORE_REQUIRES_NEW_pet_shop_restore_DATABASE');
-  if(!state||state.version!==1||!Array.isArray(state.products)||!Array.isArray(state.orders)||!state.addresses||!state.keys||!state.events)throw Error('INVALID_BACKUP');
-  const session=this.client.startSession();try{await transaction(session,async()=>{const before=await this.load(session);if(before.meta.revision!==0)throw Error('RESTORE_TARGET_NOT_EMPTY');await this.persist(before.state,state,before.meta,session,{id:'system'},'restore');});}finally{await session.endSession();}
+ async backupSnapshot(){
+  const session=this.client.startSession();let result;
+  try{await transaction(session,async()=>{const {state,meta}=await this.load(session);const audit=await this.db.collection('audit_log').find({},{session}).sort({revision:1,_id:1}).toArray();result={state,audit,revision:meta.revision};},{readConcern:{level:'snapshot'},timeoutMS:60000});return result;}finally{await session.endSession();}
  }
+ async restoreSnapshot({state,audit,revision,backupId}){
+  if(!/^pet_shop_restore_[a-zA-Z0-9_]+$/.test(this.db.databaseName))throw Error('RESTORE_REQUIRES_NEW_pet_shop_restore_DATABASE');
+  if(!state||state.version!==1||!Array.isArray(state.products)||!Array.isArray(state.orders)||!state.addresses||!state.keys||!state.events||!Array.isArray(audit)||!Number.isSafeInteger(revision)||revision<0||revision>=Number.MAX_SAFE_INTEGER)throw Error('INVALID_BACKUP');
+  const session=this.client.startSession();
+  try{await transaction(session,async()=>{
+   const before=await this.load(session);
+   if(before.meta.revision!==0||!require('node:util').isDeepStrictEqual(before.state,seed())||await this.db.collection('audit_log').countDocuments({},{session}))throw Error('RESTORE_TARGET_NOT_EMPTY');
+   await this.persist(before.state,state,before.meta,session,{id:'system'},'restore');
+   const restoreEvent=await this.db.collection('audit_log').findOne({action:'restore'},{session});
+   if(restoreEvent)await this.db.collection('audit_log').updateOne({_id:restoreEvent._id},{$set:{revision:revision+1,backupId}},{session});
+   else await this.db.collection('audit_log').insertOne({_id:randomUUID(),at:new Date(),actor:'system',action:'restore',revision:revision+1,backupId,orderIds:[]},{session});
+   if(audit.length)await this.db.collection('audit_log').insertMany(audit.map(row=>({...row,at:new Date(row.at)})),{session});
+   await this.db.collection('shop_meta').updateOne({_id:'settings'},{$set:{revision:revision+1}},{session});
+  },{readConcern:{level:'snapshot'},writeConcern:{w:'majority'},timeoutMS:60000});}finally{await session.endSession();}
+ }
+ async restore(state){return this.restoreSnapshot({state,audit:[],revision:0,backupId:'legacy-format-1'});}
  async close(){await this.client.close();}
 }
 module.exports={MongoStore};

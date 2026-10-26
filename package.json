@@ -12,7 +12,9 @@
     "db:restore": "node scripts/mongo-backup.js restore",
     "test:mongo": "node scripts/test-mongo.js",
     "setup:accounts": "node scripts/setup-accounts.js",
-    "export:buyer": "node scripts/export-buyer.js"
+    "export:buyer": "node scripts/export-buyer.js",
+    "db:verify": "node scripts/mongo-backup.js verify",
+    "db:backup-status": "node scripts/mongo-backup.js status"
   },
   "engines": {
     "node": ">=20.19"
