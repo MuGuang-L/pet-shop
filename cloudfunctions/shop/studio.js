@@ -4,6 +4,12 @@ const slots=[{key:'hero',name:'首页主视觉',hint:'建议横向构图，左�
 const defaults={hero:'/assets/hero-v2.jpg',cat:'/assets/cat-v2.jpg',dog:'/assets/dog-v2.jpg',care:'/assets/care-v2.jpg',toy:'/assets/toy-v2.jpg',avatar:'/assets/cat-v2.jpg',empty:'/assets/empty-v2.jpg'};
 const afterStages={REQUESTED:'售后待审核',REJECTED:'售后已拒绝',WITHDRAWN:'售后已撤回',WAIT_RETURN:'待买家退货',RETURN_TRANSIT:'退货待验收',WAIT_REFUND:'待模拟退款',REFUND_FAILED:'模拟退款失败',SUCCEEDED:'退款完成'};
 const pets=['待确认','猫咪','狗狗','通用'];
+const simulationNotes=[
+ '当前全部为模拟体验，不发生真实付款、配送或退款。请勿按示例门店或退货地址到店、寄件。',
+ '请使用虚构的收货人、电话、地址和可公开的示意图片。测试账号、商品、收货信息、订单及售后记录会保存到共享服务，用于联调和故障排查。',
+ '买家账号只能查看自己的订单；商家账号可以查看处理订单所需的收货信息。不要把商家账号提供给买家使用。',
+ '退出登录会清除当前登录状态，不会删除已保存的测试记录。记录会保留并备份，如需清理，请联系分配测试账号的维护者。'
+];
 const homeDefaults={headline:'好好吃饭，\n快乐长大。',subtitle:'给毛孩子的日常小美好',featuredTitle:'店主精选',featuredIntro:'从吃饭到玩耍，把日常照顾得刚刚好。',newTitle:'上新小货架',scenes:[{key:'meal',category:'主粮',title:'把饭点变成期待',text:'主粮按需选，日常好好吃',image:'food-v2'},{key:'play',category:'玩具',title:'今天，陪它玩一会儿',text:'把陪伴放进日常',image:'toy-v2'},{key:'care',category:'清洁',title:'蓬松干净的小日子',text:'梳理与清洁，一起慢慢来',image:'care-v2'}]};
 function petOf(p){return p.petScope||({food:'猫咪',toy:'通用',care:'通用'}[p.id])||'待确认';}
 function featuredOf(p){return p.featured===undefined?['food','toy'].includes(p.id):p.featured;}
@@ -25,5 +31,5 @@ function images(target){return assets.filter(a=>target==='hero'?a.kind==='横幅
 const pickupStore={name:'爪爪小铺 · 演示门店',detail:'示例市花园路 18 号（模拟地址）',hours:'每日 10:00—20:00',phone:'13800000000'};
 const issueLabels={OUT_OF_STOCK:'缺货待处理',DELIVERY_FAILED:'外送未送达',PICKUP_DELAY:'自提延期',CONTACT_UNREACHABLE:'联系未果'};
 function fulfillmentLabel(o){if(o.fulfillment?.issue?.status==='OPEN'&&['PAID','SHIPPED'].includes(o.status))return issueLabels[o.fulfillment.issue.type]||'履约待处理';if(o.fulfillment?.type==='PICKUP'){if(o.status==='PAID')return o.fulfillment.readyAt?'待到店自提':'门店备货中';if(o.status==='COMPLETED')return '已自提';}return ({PAID:'商家备货中',SHIPPED:'商家配送中'})[o.status]||'';}
-return {assets,slots,defaults,templates,create,cents,images,pets,homeDefaults,petOf,featuredOf,matches,homeProducts,productImages,withImage,withoutImage,afterStages,pickupStore,fulfillmentLabel,issueLabels};
+return {assets,slots,defaults,templates,create,cents,images,pets,simulationNotes,homeDefaults,petOf,featuredOf,matches,homeProducts,productImages,withImage,withoutImage,afterStages,pickupStore,fulfillmentLabel,issueLabels};
 });

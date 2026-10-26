@@ -350,4 +350,7 @@ async function submitFulfillment(action){
  catch(e){if(committed){modalDirty=false;if(retry)retry.hidden=true;error(Error('处理结果已保存，但刷新失败。请关闭详情后重新打开订单核对，无需再次提交。'));return;}if(e.business&&e.code&&e.code!=='处理请求已提交，请勿改动原请求重试'){sessionStorage.removeItem(issueStorageKey(id));if(fields)fields.disabled=false;else await viewOrder(id);}else if(retry)retry.hidden=false;error(e);}
  finally{savingOrder=false;if(retry)retry.disabled=false;}
 }
+function simulationNotesHtml(){return studio.simulationNotes.map(note=>'<p>'+esc(note)+'</p>').join('');}
+function showSimulationNotes(){if($('modal').open&&!closeModal())return;modal('<h2>模拟使用与数据说明</h2><div class="simulation-notes">'+simulationNotesHtml()+'</div>',false,'notice');}
+$('simulation-login-notes').innerHTML=simulationNotesHtml();
 boot();

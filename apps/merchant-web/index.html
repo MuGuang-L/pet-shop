@@ -16,6 +16,7 @@
     <label>密码<input id="password" type="password" autocomplete="current-password" required placeholder="输入密码"></label>
     <p id="login-error" role="alert"></p><button id="login-button" class="primary full">登录</button>
     <small>模拟经营环境，不产生真实付款与退款。</small>
+    <details class="simulation-notes"><summary>模拟使用与数据说明</summary><div id="simulation-login-notes"></div></details>
   </form>
 </section>
 <div id="workspace" hidden>
@@ -30,7 +31,7 @@
     <div class="sidebar-foot">模拟经营<small>付款与退款均为模拟操作</small></div>
   </aside>
   <main class="admin-main">
-    <header class="admin-header"><div><h1 id="section-title">订单</h1><p id="section-note"></p></div><div class="operator-controls"><span id="operator"></span><button onclick="logout()">退出登录</button></div></header>
+    <header class="admin-header"><div><h1 id="section-title">订单</h1><p id="section-note"></p></div><div class="operator-controls"><span id="operator"></span><button onclick="showSimulationNotes()">使用说明</button><button onclick="logout()">退出登录</button></div></header>
     <div id="error" role="alert"></div><div id="notice" class="save-notice" role="status" hidden></div>
     <section id="app" aria-busy="false"></section>
   </main>
