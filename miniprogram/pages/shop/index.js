@@ -70,7 +70,17 @@ Page({
  fulfillmentOrders(e){this.run(async()=>{this.navigate({tab:'orders',fulfillmentFilter:e.currentTarget.dataset.value,orderStatus:'ALL',orderStatusIndex:0,orderPageNumber:1,orderQuery:''});await this.loadOrderPage();});},
  field(e){this.setData({['addressForm.'+e.currentTarget.dataset.key]:e.detail.value});},
  editAddress(e){this.setData({addressEditing:true,addressForm:{...this.data.addresses[Number(e.currentTarget.dataset.i)]}});},
- saveAddress(){this.run(async()=>{const saved=await api.call('saveAddress',this.data.addressForm);this.setData({addressForm:{},addressEditing:false});await this.refresh();if(['cart','checkout'].includes(this.data.addressReturn)){const i=this.data.addresses.findIndex(a=>a.id===saved.id);this.navigate({addressIndex:i<0?0:i,tab:this.data.addressReturn});}this.cartTotal();this.checkoutKey=null;});},
+ saveAddress(){this.run(async()=>{
+  const saved=await api.call('saveAddress',this.data.addressForm);
+  // Keep the acknowledged address even if the following refresh loses its response.
+  const addresses=this.data.addresses.map(a=>a.id===saved.id?saved:a);
+  if(!addresses.some(a=>a.id===saved.id))addresses.push(saved);
+  const returning=['cart','checkout'].includes(this.data.addressReturn);
+  this.setData({addresses,addressIndex:returning?addresses.findIndex(a=>a.id===saved.id):this.data.addressIndex,addressForm:{},addressEditing:false});
+  this.cartTotal();this.checkoutKey=null;
+  await this.refresh();
+  if(returning)this.navigate({tab:this.data.addressReturn});
+ });},
  deleteAddress(e){this.run(async()=>{if(!await this.confirm('删除收货地址','删除后需要重新添加，是否继续？'))return;await api.call('deleteAddress',{id:e.currentTarget.dataset.id});await this.refresh();});},
  pickAddress(e){this.setData({addressIndex:Number(e.detail.value)});this.checkoutKey=null;this.cartTotal();},
  checkout(){this.run(async()=>{
