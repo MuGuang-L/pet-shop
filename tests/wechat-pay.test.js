@@ -18,7 +18,7 @@ async function boot(now=Date.now()){
   const calls=[];
   let paidFee=0;
   const fetchImpl=async(url,options={})=>{calls.push({url,options});const body=JSON.parse(options.body||'{}');const action=String(url).split('/_/pay/')[1]||'';if(action==='unifiedOrder'){paidFee=body.total_fee;return payText({errcode:0,errmsg:'ok',respdata:{return_code:'SUCCESS',result_code:'SUCCESS',prepay_id:'prepay-1',payment:{timeStamp:'1700000000',nonceStr:'nonce',package:'prepay_id=prepay-1',signType:'MD5',paySign:'pay-sign'}}});}if(action==='queryorder')return payText({errcode:0,errmsg:'ok',respdata:{return_code:'SUCCESS',result_code:'SUCCESS',trade_state:'SUCCESS',transaction_id:'tx-real-1',out_trade_no:body.out_trade_no,total_fee:paidFee,sub_mch_id:body.sub_mch_id,sub_openid:'openid-buyer',fee_type:'CNY'}});if(action==='refund')return payText({errcode:0,errmsg:'ok',respdata:{return_code:'SUCCESS',result_code:'SUCCESS',refund_id:'refund-1',out_refund_no:body.out_refund_no}});if(action==='queryrefund')return payText({errcode:0,errmsg:'ok',respdata:{return_code:'SUCCESS',result_code:'SUCCESS',refund_count:1,out_refund_no_list:[body.out_refund_no],refund_id_list:['refund-1'],refund_fee_list:[paidFee],refund_status_list:['SUCCESS']}});return {ok:false,status:404,text:async()=>'{}'};};
-  const server=createServer(store,{auth,publicOrigin:'https://shop.example.com',wechat:settings(now),fetch:fetchImpl});
+  const server=createServer(store,{auth,publicOrigin:'https://shop.example.com',wechat:settings(now),cloudIdentity:{enabled:true,appId:'wx-test-app'},fetch:fetchImpl});
   await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
   const base='http://127.0.0.1:'+server.address().port;
   const post=async(url,body,token,headers={})=>{const response=await fetch(base+url,{method:'POST',headers:{'Content-Type':'application/json',...(token?{Authorization:'Bearer '+token}:{}),...headers},body:JSON.stringify(body)});return {status:response.status,body:await response.json(),headers:response.headers};};
@@ -30,8 +30,8 @@ test('未配置时支付动作和回调保持关闭',async()=>{const store=memor
 test('小程序身份可以拉起 JSAPI 支付，回调入账且重复通知幂等',async()=>{const now=Date.now();const fx=await boot(()=>now);try{
   const forged=await fx.post('/auth/me',{},undefined,{'x-wx-openid':'openid-buyer'});assert.equal(forged.status,401);
   const me=await fx.post('/auth/me',{},undefined,buyerHeaders);assert.equal(me.body.data.openid,'openid-buyer');assert.equal(me.body.data.channel,'wechat');
-  const reused=await fx.post('/auth/me',{},undefined,{'x-wx-from-openid':'openid-reused','x-wx-source':'wx_client'});assert.equal(reused.body.data.openid,'openid-reused');
-  const platformSource=await fx.post('/auth/me',{},undefined,{'x-wx-openid':'openid-platform','x-wx-source':'cloudbase'});assert.equal(platformSource.body.data.openid,'openid-platform');
+  const reused=await fx.post('/auth/me',{},undefined,{'x-wx-from-openid':'openid-reused','x-wx-from-appid':'wx-test-app','x-wx-source':'wx_client'});assert.equal(reused.body.data.openid,'openid-reused');
+  const platformSource=await fx.post('/auth/me',{},undefined,{'x-wx-openid':'openid-platform','x-wx-appid':'wx-test-app','x-wx-source':'cloudbase'});assert.equal(platformSource.body.data.openid,'openid-platform');
   const address=await fx.post('/api',{action:'saveAddress',input:{name:'微信买家',phone:'13800000000',detail:'样例街道 8 号'}},undefined,buyerHeaders);
   const order=await fx.post('/api',{action:'createOrder',input:{key:'wechat-pay-1',addressId:address.body.data.id,lines:[{productId:'food',skuId:'food-1',qty:1}]}},undefined,buyerHeaders);
   const pay=await fx.post('/api',{action:'payment',input:{id:order.body.data.id}},undefined,buyerHeaders);

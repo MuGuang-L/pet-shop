@@ -142,6 +142,27 @@ class MysqlStore{
   const rows=await this.query('SELECT payload FROM wechat_trades WHERE out_trade_no=?',[outTradeNo]);
   return rows.length?parseValue(rows[0].payload):null;
  }
+ async reserveTrade(doc){
+  return this.transaction(async connection=>{
+   // The existing singleton row also serializes reservations across instances.
+   await this.readState(connection);
+   const [rows]=await connection.query('SELECT payload FROM wechat_trades WHERE order_id=? ORDER BY created_at DESC',[doc.orderId]);
+   if(rows.length)return parseValue(rows[0].payload);
+   const stored={...doc,_id:doc.outTradeNo,version:1};
+   await connection.query('INSERT INTO wechat_trades (out_trade_no, order_id, payload, created_at) VALUES (?,?,CAST(? AS JSON),?)',[doc.outTradeNo,doc.orderId,JSON.stringify(stored),doc.createdAt]);
+   return stored;
+  });
+ }
+ async saveTrade(doc){
+  const stored={...doc,_id:doc.outTradeNo,version:(doc.version||0)+1};
+  const result=await this.query("UPDATE wechat_trades SET payload=CAST(? AS JSON) WHERE out_trade_no=? AND COALESCE(JSON_EXTRACT(payload, '$.version'),0)=?",[JSON.stringify(stored),doc.outTradeNo,doc.version||0]);
+  if(result.affectedRows!==1)throw Error('PAYMENT_REVISION_CONFLICT');
+  return stored;
+ }
+ async pendingTrades(at,limit=10){
+  const rows=await this.query("SELECT payload FROM wechat_trades WHERE JSON_UNQUOTE(JSON_EXTRACT(payload, '$.status')) NOT IN ('SUCCESS','CLOSED','REFUNDED','DUPLICATE_REFUNDED') AND COALESCE(JSON_EXTRACT(payload, '$.nextCheckAt'),0)<=? ORDER BY COALESCE(JSON_EXTRACT(payload, '$.nextCheckAt'),0), created_at LIMIT ?",[at,limit]);
+  return rows.map(row=>parseValue(row.payload));
+ }
  async tradesByOrder(orderId){
   const rows=await this.query('SELECT payload FROM wechat_trades WHERE order_id=? ORDER BY created_at DESC',[orderId]);
   return rows.map(row=>parseValue(row.payload));

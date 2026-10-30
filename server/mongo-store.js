@@ -137,5 +137,26 @@ class MongoStore{
   },{readConcern:{level:'snapshot'},writeConcern:{w:'majority'}});return result;}finally{await session.endSession();}
  }
  async close(){await this.client.close();}
+ async upsertTrade(doc){const stored={...doc,_id:doc.outTradeNo};await this.db.collection('wechat_trades').replaceOne({_id:doc.outTradeNo},stored,{upsert:true});return stored;}
+ async getTrade(outTradeNo){return this.db.collection('wechat_trades').findOne({_id:outTradeNo});}
+ async tradesByOrder(orderId){return this.db.collection('wechat_trades').find({orderId}).sort({createdAt:-1}).toArray();}
+ async reserveTrade(doc){
+  const session=this.client.startSession();let result;
+  try{await transaction(session,async()=>{
+   // A shared write makes competing reservations retry the transaction.
+   const locked=await this.db.collection('shop_meta').updateOne({_id:'settings'},{$inc:{paymentRevision:1}},{session});
+   if(!locked.matchedCount)throw Error('DATABASE_NOT_INITIALIZED');
+   result=await this.db.collection('wechat_trades').findOne({orderId:doc.orderId},{session,sort:{createdAt:-1}});
+   if(!result){result={...doc,_id:doc.outTradeNo,version:1};await this.db.collection('wechat_trades').insertOne(result,{session});}
+  });return result;}finally{await session.endSession();}
+ }
+ async saveTrade(doc){
+  const stored={...doc,_id:doc.outTradeNo,version:(doc.version||0)+1};
+  const filter={_id:doc.outTradeNo,...(doc.version?{version:doc.version}:{$or:[{version:0},{version:{$exists:false}}]})};
+  const result=await this.db.collection('wechat_trades').replaceOne(filter,stored);
+  if(!result.matchedCount)throw Error('PAYMENT_REVISION_CONFLICT');
+  return stored;
+ }
+ async pendingTrades(at,limit=10){return this.db.collection('wechat_trades').find({status:{$nin:['SUCCESS','CLOSED','REFUNDED','DUPLICATE_REFUNDED']},$or:[{nextCheckAt:{$lte:at}},{nextCheckAt:{$exists:false}}]}).sort({nextCheckAt:1,createdAt:1}).limit(limit).toArray();}
 }
 module.exports={MongoStore};

@@ -14,12 +14,13 @@ function resolveAuth(){
 
 function connectDatabase(){return mysqlSettings()?MysqlStore.connect():require('./mongo-store').MongoStore.connect();}
 // Keep HTTP available while the database starts, including a paused serverless MySQL instance. Never buffer writes while offline.
-async function start({connect=connectDatabase,port=4173,host='127.0.0.1',retryDelay=1000,logger=console,httpOptions={},backupOptions=null}={}){
+async function start({connect=connectDatabase,port=4173,host='127.0.0.1',retryDelay=1000,logger=console,httpOptions={},backupOptions=null,paymentInterval=60000}={}){
  let store=null,stopping=false,retryTimer=null,connecting=null,ticking=false,tickTask=null,delay=retryDelay;
  const backups=backupOptions?require('./backup-scheduler').createBackupScheduler({...backupOptions,getStore:()=>current(),logger}):null;
  const current=()=>{if(store)return store;const error=Error('DATABASE_NOT_READY');error.name='MysqlUnavailable';throw error;};
  const wechat=httpOptions.wechat===undefined?loadWechat():httpOptions.wechat;
  const facade={get engine(){return current().engine;},ping:()=>{const db=current();return typeof db.ping==='function'?db.ping():db.db.command({ping:1});},get db(){return current().db;},execute:(...args)=>current().execute(...args),settlePayment:(payload,at)=>current().settlePayment(payload,at),settleRefund:(payload,at)=>current().settleRefund(payload,at),upsertTrade:doc=>current().upsertTrade(doc),getTrade:id=>current().getTrade(id),tradesByOrder:id=>current().tradesByOrder(id)};
+ for(const method of ['reserveTrade','saveTrade','pendingTrades'])facade[method]=(...args)=>current()[method](...args);
  const server=createServer(facade,{...httpOptions,auth:httpOptions.auth||resolveAuth(),wechat});
  await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(port,host,()=>{server.removeListener('error',reject);resolve();});});
  const attempt=()=>{
@@ -41,11 +42,17 @@ async function start({connect=connectDatabase,port=4173,host='127.0.0.1',retryDe
   tickTask=store.execute({id:'system',merchant:true},'expire',{}, {mock:true})
    .catch(e=>logger.error('Order expiry unavailable:',e.name)).finally(()=>{ticking=false;tickTask=null;});
  },10000);timer.unref();
+ let paymentTask=null;
+ const paymentTimer=setInterval(()=>{
+  if(stopping||!store||paymentTask||!wechat?.payReady)return;
+  paymentTask=server.reconcilePayments().then(result=>{if(result.failed)logger.error('Payment reconciliation pending retries:',result.failed);})
+   .catch(()=>logger.error('Payment reconciliation unavailable; will retry.')).finally(()=>{paymentTask=null;});
+ },paymentInterval);paymentTimer.unref();
  let shutdown;
  const stop=()=>shutdown||(shutdown=(async()=>{
-  stopping=true;clearTimeout(retryTimer);clearInterval(timer);
+  stopping=true;clearTimeout(retryTimer);clearInterval(timer);clearInterval(paymentTimer);
   await new Promise(resolve=>{server.close(resolve);server.closeIdleConnections();});
-  if(backups)await backups.stop();if(connecting)await connecting;if(tickTask)await tickTask;if(store)await store.close();
+  if(backups)await backups.stop();if(connecting)await connecting;if(tickTask)await tickTask;if(paymentTask)await paymentTask;if(store)await store.close();
  })());
  logger.log('Shop HTTP service listening; database readiness is reported by /health.');
  logger.log(wechat?.payReady?'WeChat Pay ready.':'WeChat Pay is not configured: '+(wechat?.payMissing||['config']).join(', '));

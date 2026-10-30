@@ -45,8 +45,12 @@ function loadWechat(){
   };
   const https=/^https:\/\/[a-zA-Z0-9.-]+(?::\d+)?$/.test(publicOrigin);
   const payMissing=config.mchId?[]:['mchId'];
+  // CBR_ENV_ID is injected by WeChat hosting, never inferred from request headers.
+  // An explicit false override also supports HTTP-only deployments on that platform.
+  const trustCloud=process.env.WECHAT_TRUST_CLOUD_HEADERS==='true'||(!!process.env.CBR_ENV_ID&&process.env.WECHAT_TRUST_CLOUD_HEADERS!=='false');
+  if(trustCloud&&!/^wx[0-9a-f]{16}$/.test(config.appId))throw Error('WECHAT_APPID_REQUIRED_FOR_CLOUD_IDENTITY');
   return {
-    config,payReady:payMissing.length===0,payMissing,
+    config,payReady:payMissing.length===0,payMissing,cloudIdentity:{enabled:trustCloud,appId:config.appId},
     payNotifyUrl:https?publicOrigin+'/wechat/pay/notify':'',
     refundNotifyUrl:https?publicOrigin+'/wechat/refund/notify':''
   };

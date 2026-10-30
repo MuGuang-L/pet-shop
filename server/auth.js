@@ -62,17 +62,22 @@ class Auth{
   return typeof token==='string'&&/^[a-f0-9]{64}$/.test(token)?token:undefined;
  }
  identity(req){const token=this.token(req),session=this.sessions.get(token);if(!session||session.expiresAt<=this.now()){this.sessions.delete(token);throw Error('AUTH_REQUIRED');}return session.identity;}
- cloudBuyer(req){
+ cloudBuyer(req,{enabled=false,appId=''}={}){
+  // Headers are identity evidence only behind the managed WeChat ingress.
+  // Local servers, tunnels and ordinary reverse proxies must use sessions.
+  if(!enabled)return null;
   const read=name=>{const value=req.headers[name];return typeof value==='string'?value.trim():'';};
   // CloudBase uses X-WX-FROM-OPENID when this service is reached through
   // resource reuse.  It is the end user's trusted identifier in that route.
-  const openid=read('x-wx-openid')||read('x-wx-from-openid'),source=read('x-wx-source');
+  const reused=!!read('x-wx-from-openid');
+  const openid=reused?read('x-wx-from-openid'):read('x-wx-openid'),source=read('x-wx-source');
   if(!openid&&!source)return null;
   // X-WX-SOURCE is set by the CloudBase gateway.  Its documented values are
   // platform-dependent, so only require its presence; pinning historical
   // values (wx_client/wx_devtools) rejects valid production requests.
-  if(!/^[A-Za-z0-9_-]{8,64}$/.test(openid)||!source||source.length>128)throw Error('AUTH_REQUIRED');
-  return {id:'wx:'+openid,merchant:false,openid,appid:read('x-wx-appid'),channel:'wechat'};
+  const callerAppId=read(reused?'x-wx-from-appid':'x-wx-appid');
+  if(!appId||callerAppId!==appId||!/^[A-Za-z0-9_-]{8,64}$/.test(openid)||!source||source.length>128)throw Error('AUTH_REQUIRED');
+  return {id:'wx:'+openid,merchant:false,openid,appid:callerAppId,channel:'wechat'};
  }
  logout(req){this.sessions.delete(this.token(req));}
  openSession(identity){
