@@ -7,12 +7,13 @@ function session(){const s=wx.getStorageSync(key);return s&&s.apiBase===base()?s
 function paths(value){const prefix=cloud?assetOrigin():base();if(typeof value==='string')return /^\/(assets|uploads)\//.test(value)&&prefix?prefix+value:value;if(Array.isArray(value))return value.map(paths);if(value&&typeof value==='object')return Object.fromEntries(Object.entries(value).map(([k,v])=>[k,paths(v)]));return value;}
 const loginMessages={INVALID_CREDENTIALS:'账号或密码不正确',LOGIN_RATE_LIMIT:'登录尝试过多，请一分钟后再试',LOGIN_BUSY:'当前登录人数较多，请稍后再试'};
 const addressMessages={ADDRESS_NAME:'请填写收货人姓名，最多 40 个字',ADDRESS_PHONE:'请填写 11 位手机号码',ADDRESS_DETAIL:'请填写 5～200 个字的详细地址',ADDRESS_REQUIRED:'请选择收货地址',CREATE_REQUEST_CONFLICT:'上次地址可能已保存，请先关闭编辑并刷新地址列表核对。'};
+const paymentMessages={NOAUTH:'商家微信支付尚未获得授权，请联系商家处理（NOAUTH）',NO_AUTH:'商家微信支付尚未获得授权，请联系商家处理（NO_AUTH）'};
 const readActions=new Set(['catalog','storefront','homeContent','identity','addresses','orders','ordersPage','order','tracking','shopSettings','quoteOrder']);
 function accept(endpoint,token,r,resolve,reject){
  if(endpoint==='/auth/login'&&[400,429,503].includes(r.statusCode)&&Object.prototype.hasOwnProperty.call(loginMessages,r.data?.error))return reject(Object.assign(Error(loginMessages[r.data.error]),{code:r.data.error,definitive:true}));
  if(r.statusCode===401){if(!cloud&&session()?.token===token)wx.removeStorageSync(key);return reject(Object.assign(Error('AUTH_REQUIRED'),{code:'AUTH_REQUIRED',definitive:false}));}
  if([408,429,500,502,503,504].includes(r.statusCode)||!r.data||typeof r.data.ok!=='boolean')return reject(Object.assign(Error('服务暂时不可用，请稍后重试'),{retryable:true,definitive:false}));
- if(r.statusCode!==200||!r.data.ok){const code=r.data.error;const error=Error(Object.prototype.hasOwnProperty.call(addressMessages,code)?addressMessages[code]:code||'服务请求失败');error.code=code;error.definitive=r.statusCode===400&&r.data.retryable!==true;return reject(error);}
+ if(r.statusCode!==200||!r.data.ok){const code=r.data.error;const error=Error(Object.prototype.hasOwnProperty.call(addressMessages,code)?addressMessages[code]:Object.prototype.hasOwnProperty.call(paymentMessages,code)?paymentMessages[code]:code||'服务请求失败');error.code=code;error.definitive=r.statusCode===400&&r.data.retryable!==true;return reject(error);}
  if(!Object.prototype.hasOwnProperty.call(r.data,'data'))return reject(Object.assign(Error('服务响应不完整，请稍后重试'),{retryable:true,definitive:false}));
  resolve(r.data.data);
 }

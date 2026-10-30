@@ -33,7 +33,7 @@
 
 商家账号缺失时，进程退出，日志是 `Shop startup failed: MERCHANT_ACCOUNT_REQUIRED`。云托管界面上就是 `Back-off restarting failed container`。
 
-配置正确时，日志先出现 `Shop HTTP service listening`，连上数据库后出现 `Database connection ready.`。支付商户号已填时再出现 `WeChat Pay ready.`。
+配置正确时，日志先出现 `Shop HTTP service listening`，连上数据库后出现 `Database connection ready.`。支付商户号已填时再出现 `WeChat Pay ready.`。这条日志及健康检查的 `wechatPay: true` 只表示配置齐备，不表示商户绑定、支付授权或实际收退款已通过。若预支付返回 `NOAUTH`，应核对商户绑定与云托管支付权限。
 
 `/health` 返回 200 且 `database` 为 `mysql`，表示可以接流量。数据库空闲暂停后恢复时，日志里会出现 `CynosDB serverless instance is resuming`，进程保持监听并重试，不用为此重启。这段时间 `/health` 是 503，存活探针看容器端口即可。
 
