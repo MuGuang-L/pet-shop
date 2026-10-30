@@ -68,7 +68,10 @@ class Auth{
   // resource reuse.  It is the end user's trusted identifier in that route.
   const openid=read('x-wx-openid')||read('x-wx-from-openid'),source=read('x-wx-source');
   if(!openid&&!source)return null;
-  if(!/^[A-Za-z0-9_-]{8,64}$/.test(openid)||!['wx_client','wx_devtools'].includes(source))throw Error('AUTH_REQUIRED');
+  // X-WX-SOURCE is set by the CloudBase gateway.  Its documented values are
+  // platform-dependent, so only require its presence; pinning historical
+  // values (wx_client/wx_devtools) rejects valid production requests.
+  if(!/^[A-Za-z0-9_-]{8,64}$/.test(openid)||!source||source.length>128)throw Error('AUTH_REQUIRED');
   return {id:'wx:'+openid,merchant:false,openid,appid:read('x-wx-appid'),channel:'wechat'};
  }
  logout(req){this.sessions.delete(this.token(req));}
