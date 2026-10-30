@@ -5,8 +5,8 @@ class TradeBook{
   constructor(store){this.store=store||null;this.rows=new Map();}
   async save(doc){
     const stored={...doc,_id:doc.outTradeNo};
-    this.rows.set(doc.outTradeNo,stored);
     if(typeof this.store?.upsertTrade==='function')await this.store.upsertTrade(stored);
+    this.rows.set(doc.outTradeNo,stored);
     return stored;
   }
   async get(outTradeNo){
@@ -59,15 +59,20 @@ function createWechat({settings,store,auth,fetch:fetchImpl=global.fetch,now=()=>
     if(!wechat.timeStamp||!wechat.nonceStr||!wechat.package.startsWith('prepay_id=')||!wechat.paySign)throw Error('WECHAT_PREPAY');
     return wechat;
   }
+  function at(data,key,index){const value=data?.[key];return Array.isArray(value)?value[index]:undefined;}
   function refundHit(data,outRefundNo){
-    const status=field(data,'refund_status','refundStatus');
-    if(status==='SUCCESS'&&(!outRefundNo||field(data,'out_refund_no','outRefundNo')===outRefundNo||!field(data,'out_refund_no','outRefundNo')))return {refundId:String(field(data,'refund_id','refundId')||''),amount:Number(field(data,'refund_fee','refundFee'))};
+    if(!data||typeof data!=='object')return null;
+    const rows=[];
+    const top=field(data,'refund_status','refundStatus');
+    if(top)rows.push({status:top,outRefundNo:field(data,'out_refund_no','outRefundNo'),refundId:String(field(data,'refund_id','refundId')||''),amount:Number(field(data,'refund_fee','refundFee'))});
     const count=Number(data.refund_count||0);
-    for(let i=0;i<count||(i===0&&data.refund_status_0);i++){
-      if(data['refund_status_'+i]==='SUCCESS'&&(!outRefundNo||data['out_refund_no_'+i]===outRefundNo))return {refundId:String(data['refund_id_'+i]||''),amount:Number(data['refund_fee_'+i])};
-      if(count&&i+1>=count)break;
+    for(let i=0;i<Math.max(count,0)||data['refund_status_'+i]||at(data,'refund_status_list',i);i++){
+      if(i>20)break;
+      const status=data['refund_status_'+i]||at(data,'refund_status_list',i);
+      if(status)rows.push({status,outRefundNo:data['out_refund_no_'+i]||at(data,'out_refund_no_list',i),refundId:String(data['refund_id_'+i]||at(data,'refund_id_list',i)||''),amount:Number(data['refund_fee_'+i]??at(data,'refund_fee_list',i))});
+      if(i+1>=count&&!data['refund_status_'+(i+1)]&&!at(data,'refund_status_list',i+1))break;
     }
-    return null;
+    return rows.find(row=>row.status==='SUCCESS'&&row.refundId&&(!outRefundNo||!row.outRefundNo||String(row.outRefundNo)===String(outRefundNo)))||null;
   }
   async function orderOf(actor,id){
     if(!id||typeof id!=='string')throw Error('ORDER_NOT_FOUND');
@@ -119,11 +124,12 @@ function createWechat({settings,store,auth,fetch:fetchImpl=global.fetch,now=()=>
     const order=await orderOf(actor,input.id);
     if(order.userId!==actor.id)throw Error('FORBIDDEN');
     if(order.status!=='PENDING')return order;
-    const trade=(await book.byOrder(order.id)).sort((a,b)=>b.createdAt-a.createdAt)[0];
-    if(!trade)return order;
-    const remote=await callPay('queryorder',{out_trade_no:trade.outTradeNo,sub_mch_id:config.mchId});
-    if(field(remote,'trade_state','tradeState')!=='SUCCESS')return order;
-    return applyPaid(trade,remote);
+    const trades=(await book.byOrder(order.id)).sort((a,b)=>b.createdAt-a.createdAt);
+    for(const trade of trades){
+      const remote=await callPay('queryorder',{out_trade_no:trade.outTradeNo,sub_mch_id:config.mchId});
+      if(field(remote,'trade_state','tradeState')==='SUCCESS')return applyPaid(trade,remote);
+    }
+    return order;
   }
   function tradeFor(order,rows){
     return rows.find(row=>row.transactionId&&row.transactionId===order.payment?.transactionId)||rows.sort((a,b)=>b.createdAt-a.createdAt)[0]||(order.payment?.outTradeNo?{outTradeNo:order.payment.outTradeNo,orderId:order.id,transactionId:order.payment.transactionId,amount:order.total,status:'SUCCESS',createdAt:now()}:null);
@@ -133,12 +139,14 @@ function createWechat({settings,store,auth,fetch:fetchImpl=global.fetch,now=()=>
     const cloud={envId:trade.envId||config.cloudEnv,service:trade.service||config.cloudService||'pet-shop'};
     if(!cloud.envId)throw Error('WECHAT_CLOUD_ENV_REQUIRED');
     await book.save({...trade,outTradeNo:trade.outTradeNo,outRefundNo,orderId:order.id,status:'REFUNDING'});
-    const remote=await callPay('refund',{
+    let remote;
+    try{remote=await callPay('refund',{
       out_trade_no:trade.outTradeNo,out_refund_no:outRefundNo,sub_mch_id:config.mchId,total_fee:order.total,refund_fee:order.total,
       refund_desc:clip(reason,80),env_id:cloud.envId,callback_type:2,container:{service:cloud.service,path:'/wechat/refund/notify'}
-    });
-    const done=refundHit(remote,outRefundNo);
-    if(done?.refundId)return settle('refund',{eventId:'refund:'+done.refundId,refundId:done.refundId,orderId:order.id,amount:done.amount,currency:'CNY'});
+    });}catch(error){remote=await callPay('queryrefund',{out_trade_no:trade.outTradeNo,out_refund_no:outRefundNo,sub_mch_id:config.mchId}).catch(()=>{throw error;});}
+    let done=refundHit(remote,outRefundNo);
+    if(!done)done=refundHit(await callPay('queryrefund',{out_trade_no:trade.outTradeNo,out_refund_no:outRefundNo,sub_mch_id:config.mchId}),outRefundNo);
+    if(done?.refundId&&done.amount===order.total)return settle('refund',{eventId:'refund:'+done.refundId,refundId:done.refundId,orderId:order.id,amount:done.amount,currency:'CNY'});
     return order;
   }
   async function refund(actor,input){

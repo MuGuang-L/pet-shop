@@ -1,6 +1,6 @@
 'use strict';
 const fs=require('node:fs');
-const {MysqlStore}=require('./mysql-store');
+const {MysqlStore,mysqlSettings}=require('./mysql-store');
 const {createServer}=require('./http');
 const {loadWechat}=require('./wechat-config');
 const {Auth,createAccount,location}=require('./auth');
@@ -12,7 +12,7 @@ function resolveAuth(){
  return new Auth([createAccount(username,password,'merchant','merchant')]);
 }
 
-function connectDatabase(){return process.env.MYSQL_HOST?MysqlStore.connect():require('./mongo-store').MongoStore.connect();}
+function connectDatabase(){return mysqlSettings()?MysqlStore.connect():require('./mongo-store').MongoStore.connect();}
 // Keep HTTP available while the database starts, including a paused serverless MySQL instance. Never buffer writes while offline.
 async function start({connect=connectDatabase,port=4173,host='127.0.0.1',retryDelay=1000,logger=console,httpOptions={},backupOptions=null}={}){
  let store=null,stopping=false,retryTimer=null,connecting=null,ticking=false,tickTask=null,delay=retryDelay;
@@ -53,7 +53,7 @@ async function start({connect=connectDatabase,port=4173,host='127.0.0.1',retryDe
 }
 if(require.main===module){
  const port=Number(process.env.PORT)||4173,host=process.env.PORT?'0.0.0.0':'127.0.0.1';
- const mysql=Boolean(process.env.MYSQL_HOST);
+ const mysql=Boolean(mysqlSettings());
  const ready=start({port,host,backupOptions:mysql?null:{intervalMs:Number(process.env.BACKUP_INTERVAL_HOURS||24)*3600000,keep:Number(process.env.BACKUP_KEEP||14),minAgeDays:Number(process.env.BACKUP_MIN_AGE_DAYS||7)}});
  require('./process-lifecycle').attachShutdown(async()=>{const service=await ready.catch(()=>null);if(service)await service.stop();});
  // Keep the error code visible in platform logs.  CloudBase only reports a

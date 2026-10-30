@@ -1,6 +1,12 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict');
-const {MysqlStore}=require('../server/mysql-store');
+const {MysqlStore,mysqlSettings}=require('../server/mysql-store');
+
+test('云托管内网地址带端口时拆成主机和端口',()=>{
+  assert.deepEqual(mysqlSettings({MYSQL_ADDRESS:'10.0.0.8:3306',MYSQL_USERNAME:'app',MYSQL_PASSWORD:'secret',MYSQL_DATABASE:'shop_db'}),{host:'10.0.0.8',port:3306,user:'app',password:'secret',database:'shop_db'});
+  assert.equal(mysqlSettings({MYSQL_HOST:'10.0.0.9',MYSQL_PORT:'3307',MYSQL_USER:'app'}).port,3307);
+  assert.equal(mysqlSettings({}),null);
+});
 
 test('未配置 MySQL 地址时给出明确错误，不尝试连接',async()=>{
   await assert.rejects(MysqlStore.connect({host:''}),e=>e.name==='MysqlConfigError'&&e.message==='MYSQL_NOT_CONFIGURED');

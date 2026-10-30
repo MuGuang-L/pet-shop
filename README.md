@@ -2,7 +2,7 @@
 
 宠物商城模拟开发项目，分为小程序侧和服务侧。
 
-小程序侧负责商品浏览、购物车、地址、订单和售后。服务侧包含商家 Web、HTTP API 和 MongoDB，负责商品维护、店铺装修、库存、履约及售后处理。
+小程序侧负责商品浏览、购物车、地址、订单和售后。服务侧包含商家 Web 和 HTTP API，负责商品维护、店铺装修、库存、履约及售后处理。本机开发使用 MongoDB；微信云托管使用同环境的 MySQL，部署见 [CLOUDBASE.md](CLOUDBASE.md)。
 
 ## 项目结构
 
@@ -10,7 +10,7 @@
 | --- | --- | --- |
 | 小程序侧 | `miniprogram/` | 微信小程序页面、样式和接口适配 |
 | 服务侧 | `apps/merchant-web/` | 商家 Web |
-| 服务侧 | `server/` | HTTP API、登录权限和 MongoDB 持久化 |
+| 服务侧 | `server/` | HTTP API、登录权限；本机 MongoDB，云托管 MySQL |
 | 服务侧 | `cloudfunctions/shop/` | 共享业务规则；当前由 Node.js 调用，不部署云函数 |
 | 公共 | `scripts/`、`tests/`、`docs/` | 开发脚本、测试和文档 |
 
@@ -21,7 +21,7 @@
 仓库默认连接本机，不需要 NATAPP，也不需要其他运行环境的账号、数据库或上传文件。使用 [Node.js 22](https://nodejs.org/en/download) 和 Git，在准备存放项目的目录执行：
 
 ```sh
-git clone --branch integration/full-stack https://github.com/MuGuang-L/pet-shop.git
+git clone --branch feature-yyn https://github.com/ShinnJinn/pet-shop.git
 cd pet-shop
 npm ci
 npm run setup
@@ -66,9 +66,9 @@ database 和 backend 均为 healthy 后，打开商家 Web；`http://127.0.0.1:4
 
 ## 登录说明
 
-当前保留买家和商家两种身份：买家订单、地址按账号隔离，商家才能维护商品、发货、退款和调整库存。测试账号由各自本机生成，密码不写进仓库，也不会复制现有联调环境的密码。
+本机保留买家和商家两种测试身份：买家订单、地址按账号隔离，商家才能维护商品、发货、退款和调整库存。测试账号由各自本机生成，密码不写进仓库。
 
-后续接入真实微信身份后，小程序侧可以免手输账号密码；订单归属校验仍然需要。商家 Web 继续需要登录，私人使用不代表公开网址具有访问限制。当前模拟版本不提供匿名商家入口。
+云托管里的小程序使用微信身份，不再输入买家账号。商家 Web 继续用账号密码登录。
 
 ## 功能范围
 
@@ -80,7 +80,7 @@ database 和 backend 均为 healthy 后，打开商家 Web；`http://127.0.0.1:4
 - 整单售后、审核、撤回、退货登记、实收及可售数量验收、退货入库、模拟退款重试。
 - 服务侧权限校验、用户订单隔离、库存事务、幂等操作及超时取消。
 
-小程序在云托管里用微信身份下单。`miniprogram/config.local.js` 填写云托管环境 ID，服务名默认 `pet-shop`。买家不再使用测试账号。支付走云托管开放接口服务：控制台打开「开放接口服务」并绑定商户号，容器内请求 `http://api.weixin.qq.com/_/pay/unifiedOrder`，支付结果回调打到服务自己的 `/wechat/pay/notify`，不需要商户证书，也不需要公网回调域名。环境变量 `WECHAT_MCH_ID` 填商户号（也可写在 `.local/wechat.json` 的 `mchId`，示例见 `wechat.example.json`）。商家后台仍用账号密码。本机未切到云托管时，小程序继续用买家测试账号和模拟付款。部分退款、换货、生产部署及上线验收未完成。
+云托管的环境变量、MySQL 和支付开关见 [CLOUDBASE.md](CLOUDBASE.md)。`miniprogram/config.local.js` 填写环境 ID，服务名默认 `pet-shop`。支付使用开放接口统一下单，回调进入容器，不需要商户证书和公网回调域名。本机未设置 MySQL 时，小程序继续用买家测试账号和模拟付款。部分退款、换货和真机支付验收还没完成。
 
 ## 检查与测试
 

@@ -4,13 +4,28 @@ const {seed,execute,orderPage,settleVerifiedPayment,settleVerifiedRefund}=requir
 const inventory=require('../cloudfunctions/shop/inventory');
 
 const same=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
+const retryable=new Set(['ECONNREFUSED','ETIMEDOUT','ENOTFOUND','ECONNRESET','EPIPE','EAI_AGAIN','PROTOCOL_CONNECTION_LOST','ER_CON_COUNT_ERROR','ER_LOCK_WAIT_TIMEOUT','ER_LOCK_DEADLOCK']);
 function parseValue(value){return typeof value==='string'?JSON.parse(value):value;}
 function configError(code){const error=Error(code);error.name='MysqlConfigError';return error;}
 function unavailable(error){error.name='MysqlUnavailable';return error;}
+function mysqlSettings(env=process.env){
+ const address=String(env.MYSQL_ADDRESS||env.MYSQL_HOST||'').trim();
+ if(!address)return null;
+ let host=address,port=Number(env.MYSQL_PORT)||3306;
+ const colon=address.lastIndexOf(':');
+ if(colon>0&&/^\d+$/.test(address.slice(colon+1))){host=address.slice(0,colon);port=Number(address.slice(colon+1));}
+ return {host,port,user:String(env.MYSQL_USER||env.MYSQL_USERNAME||''),password:String(env.MYSQL_PASSWORD||''),database:String(env.MYSQL_DATABASE||'pet_shop')};
+}
 
 class MysqlStore{
  constructor(pool,database){this.pool=pool;this.databaseName=database;this.engine='mysql';this.db={command:()=>this.ping()};}
- static async connect({host=process.env.MYSQL_HOST||'',port=Number(process.env.MYSQL_PORT)||3306,user=process.env.MYSQL_USER||'',password=process.env.MYSQL_PASSWORD||'',database=process.env.MYSQL_DATABASE||'pet_shop'}={}){
+ static async connect(overrides={}){
+  const base=mysqlSettings()||{};
+  const host=overrides.host!==undefined?overrides.host:(base.host||'');
+  const port=overrides.port||base.port||3306;
+  const user=overrides.user!==undefined?overrides.user:(base.user||'');
+  const password=overrides.password!==undefined?overrides.password:(base.password||'');
+  const database=overrides.database||base.database||'pet_shop';
   if(!host)throw configError('MYSQL_NOT_CONFIGURED');
   if(!user)throw configError('MYSQL_USER_REQUIRED');
   if(!/^[A-Za-z0-9_]{1,64}$/.test(database))throw configError('MYSQL_DATABASE_NAME');
@@ -136,7 +151,7 @@ class MysqlStore{
 function mark(error){
  if(error.name==='MysqlConfigError'||error.name==='MysqlUnavailable')return error;
  if(['ER_BAD_DB_ERROR','ER_ACCESS_DENIED_ERROR','ER_DBACCESS_DENIED_ERROR'].includes(error.code))return Object.assign(error,{name:'MysqlConfigError'});
- if(error.code||/resuming|ECONNREFUSED|ETIMEDOUT|ENOTFOUND/i.test(error.message||''))return unavailable(error);
+ if(retryable.has(error.code)||/resuming|ECONNREFUSED|ETIMEDOUT|ENOTFOUND/i.test(error.message||''))return unavailable(error);
  return error;
 }
-module.exports={MysqlStore};
+module.exports={MysqlStore,mysqlSettings};
