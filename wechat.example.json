@@ -1,0 +1,5 @@
+{
+  "mchId": "微信支付商户号。云托管控制台绑定到已授权后，也可只设环境变量 WECHAT_MCH_ID",
+  "cloudEnv": "云托管环境 ID。小程序 callContainer 会带 x-wx-env，商家后台退款没有该请求头时用这项或 WECHAT_CLOUD_ENV",
+  "cloudService": "pet-shop"
+}

@@ -37,7 +37,7 @@ async function preflight(config){
  await available(4173);if(config.manageMongo)await available(27018);if(config.natapp.enabled)await checkTunnelAbsent(config.natapp.binary);
  if(!fs.existsSync(path.join(dataDirectory,'auth/accounts.json')))throw error('ACCOUNTS_NOT_CONFIGURED');
 }
-async function httpReady(origin,runtimeId){try{const r=await fetch(origin+'/health',{signal:AbortSignal.timeout(2500)});if(!r.ok)return false;const h=await r.json();return h.ok===true&&h.database==='mongodb'&&h.runtimeId===runtimeId;}catch{return false;}}
+async function httpReady(origin,runtimeId){try{const r=await fetch(origin+'/health',{signal:AbortSignal.timeout(2500)});if(!r.ok)return false;const h=await r.json();return h.ok===true&&(h.database==='mongodb'||h.database==='mysql')&&h.runtimeId===runtimeId;}catch{return false;}}
 async function start({config=readConfig(),check=preflight,intervalMs=5000}={}){
  const token=crypto.randomBytes(32).toString('hex'),runtimeId=crypto.randomUUID(),startedAt=new Date().toISOString();let manager,server,timer,stopPromise,stateWriteError=null;
  const mongo=new MongoClient(config.uri,{serverSelectionTimeoutMS:2000,connectTimeoutMS:2000,socketTimeoutMS:2500,maxPoolSize:1});
@@ -50,7 +50,8 @@ async function start({config=readConfig(),check=preflight,intervalMs=5000}={}){
  try{
   server=await control.listen(root,{token,status,stop});await check(config);
   control.atomicJson(path.join(directory,'control.json'),{token});
-  const env={...process.env,PUBLIC_ORIGIN:config.publicOrigin,SHOP_DATA_DIR:dataDirectory,SHOP_RUNTIME_ID:runtimeId,MONGODB_URI:config.uri,SHOP_MONGO_DIR:path.join(dataDirectory,'mongodb')};
+  const env={...process.env,SHOP_DATA_DIR:dataDirectory,SHOP_RUNTIME_ID:runtimeId,MONGODB_URI:config.uri,SHOP_MONGO_DIR:path.join(dataDirectory,'mongodb')};
+  if(config.publicOrigin)env.PUBLIC_ORIGIN=config.publicOrigin;
   const services=[{id:'database',external:!config.manageMongo,command:process.execPath,args:['scripts/mongo-local.js'],cwd:root,env,ipc:true,probe:async()=>{try{await mongo.connect();const h=await mongo.db('admin').command({hello:1});return (config.manageMongo?h.setName==='petshop':Boolean(h.setName))&&h.isWritablePrimary===true;}catch{return false;}}},
    {id:'backend',dependencies:['database'],command:process.execPath,args:['server/index.js'],cwd:root,env,ipc:true,probe:()=>httpReady('http://127.0.0.1:4173',runtimeId)}];
   if(config.natapp.enabled)services.push({id:'tunnel',dependencies:['backend'],command:process.execPath,args:['scripts/tunnel-worker.js'],cwd:root,env:{...env,PET_TUNNEL_BINARY:config.natapp.binary,PET_TUNNEL_CONFIG:config.natapp.config},ipc:true,probe:()=>httpReady(config.publicOrigin,runtimeId)});

@@ -1,34 +1,56 @@
-# CloudBase 待配置适配与上线缺口
+# 微信云托管部署
 
-本文只是后续配置说明，不代表已授权或已执行部署。当前默认 mock，不需要任何云账号。
+当前线上形态是：小程序通过 `wx.cloud.callContainer` 调用容器里的 `server/index.js`。没有公众号网页，也不部署 `cloudfunctions/` 里的云函数。本机不设置 MySQL 变量时，仍使用本地 MongoDB，见 README。
 
-## 已写好的适配
+## 发布前在控制台完成
 
-小程序云模式调用 `shop` 云函数。云函数通过 `cloud.getWXContext().OPENID` 获取身份，不使用 event 中的 OPENID、role、merchant 或 mock。商家表 `merchants` 使用微信 OPENID 作为文档 `_id`，`enabled: true` 才有商家权限。前端隐藏按钮不构成授权，所有商家动作在领域层再次检查。
+1. 服务使用仓库根目录的 `Dockerfile`。镜像里 `PORT` 默认为 `80`，容器端口也填 `80`。
+2. 先打开「开放接口服务」，再发布版本。这个开关写在版本上，旧版本不会自动带上。
+3. 在云托管「设置 → 其他设置 → 微信支付」绑定商户号，直到状态为已授权。
+4. 在同一环境创建 MySQL，只使用内网地址，不要开外网。
+5. 小程序 `miniprogram/config.local.js` 填写该环境 ID，服务名保持 `pet-shop`。这个文件不进 Git。
 
-商品、订单、地址、请求键和支付事件暂存于 `shop_state/singleton` 的 `value` 字段，通过服务器 `runTransaction` 原子读改写。事务内只用 `doc()`，不使用 `where()`；按 SDK 可能包装的 `result` 取出返回值。官方参考：https://docs.cloudbase.net/en/database/transaction 。没有在真实云环境验证 SDK 行为。
+环境变量写在服务设置里，随新版本生效。改变量后要重新发布。
 
-`shop` 的单文档上限设为约 750KB，最多 100 个商品、500 个订单；超过返回 DEV_CAPACITY_LIMIT。这个方案旨在第一阶段验收，不适合生产流量。上线前拆分 products/orders/idempotency/payment_events/addresses，库存与订单仍须在同一事务修改，唯一键和索引需要按真实数据库方案实现。不能通过删掉幂等记录来随意“腾空间”。
+| 变量 | 要求 |
+| --- | --- |
+| `PORT` | 镜像默认 `80`。控制台若改了容器端口，这里必须填同一个值 |
+| `MERCHANT_USERNAME` | 小写商家用户名，匹配 `^[a-z0-9][a-z0-9_-]{0,79}$` |
+| `MERCHANT_PASSWORD` | 8–200 个字符。只放服务设置，不提交代码 |
+| `MYSQL_ADDRESS` 或 `MYSQL_HOST` | 内网地址。可以写成 `10.x.x.x:3306`。模板自动开通数据库时，平台注入的名字是 `MYSQL_ADDRESS` |
+| `MYSQL_USERNAME` 或 `MYSQL_USER` | 数据库账号。模板注入的名字是 `MYSQL_USERNAME` |
+| `MYSQL_PASSWORD` | 数据库密码。MySQL 登录需要原始密码，服务设置里按明文保存 |
+| `MYSQL_DATABASE` | 库名，默认 `pet_shop`，只允许字母、数字和下划线 |
+| `WECHAT_MCH_ID` | 已绑定的商户号。不填时服务能启动，支付接口返回未配置 |
 
-## 后续才需要的账号和配置
+手动开通的 MySQL 不会自动出现 `MYSQL_ADDRESS`。按上表自己填写。模板部署自动开通时，平台会写入 `MYSQL_ADDRESS`、`MYSQL_USERNAME`、`MYSQL_PASSWORD`，服务认这两组名字。
 
-1. 用户合法持有的微信小程序 AppID、对应开发者权限和合规经营信息。
-2. 明确授权后开通的 CloudBase 环境 ID；当前不创建、不购买环境。
-3. 在该独立环境创建 `merchants` 和 `shop_state` 集合。数据种子 `cloudbase/seed.json` 只含虚构样例；导入方式需按当前控制台格式调整。
-4. 用管理端可信操作设置 `{_id: "实际商家 OPENID", enabled: true}`。不可向买家开放注册商家 API。
-5. 两个集合客户端读写均拒绝，规则参考 `database.rules.json`；云函数使用服务端权限。存储仅公开读商品图片、拒绝客户端写，上传必须经过 `uploadImage` 商家鉴权云函数。不要存用户身份证或地址图片等隐私文件。
-6. 云函数 `shop`、`uploadImage` 声明 `wx-server-sdk ~3.0.1`。以后批准部署时，使用 npm 官方注册表安装并保留实际锁文件和依赖许可证，再核验当前官方 SDK 文档；此次未下载依赖。
-7. 小程序改为 `mode:'cloud'` 并填环境 ID，填写真实测试 AppID。云配置缺失时失败，不自动降级 mock。
+库不存在且账号有建库权限时，启动会创建 `MYSQL_DATABASE`。没有建库权限时，日志出现 `MysqlConfigError`，需要先在控制台建好同名库再发布。账号或密码错误同样只记录一次，不会反复重试。
 
-## 上线前必须补齐
+## 启动后看什么
 
-- 真实支付：商户申请和 AppID 绑定、API v3 密钥及证书/公钥管理、JSAPI 预支付、`wx.requestPayment`、回调签名验证/解密/金额币种商户及应用匹配、支付查单和对账。秘密只存受控云配置，不提交仓库。
-- `paymentNotify` 当前无论参数如何都 503。不能直接把客户端 `paid:true` 接到内部 `settleVerifiedPayment`。该内部函数只用于未来通过微信验证后的服务器事务结算和当前测试。
-- 真实退款请求、退款通知幂等、退款失败重试和人工对账。`REFUNDING` 不是退款成功。
-- 超时：当前业务调用时惰性清理。部署后增加受控定时扫描；先检查/关闭微信支付单，再按事务状态释放库存，并处理关闭与付款竞争。内部晚到账状态已有设计，网关尚未接入。
-- 物流：选择普通快递公司与付费/免费查询渠道并单独授权，验证 webhook 或查询接口。现在只有明确标记的模拟轨迹，运费固定样例。
-- 图片：实际微信 `chooseMedia`、本地 `saveFile`、云上传和资源访问测试；图像重新解码、内容审核、配额/限流、孤儿图片清理尚缺。当前只检查大小和文件头。
-- 可运营性：事务冲突重试、存储迁移、分页/索引、订单和库存审计日志、限流、日志脱敏、备份恢复、售后人工处理、隐私政策和平台审核资料。
-- 真机和微信开发者工具界面测试，尤其是 WXML 支持、布局、图片权限、网络中断后恢复。网页预览不能替代。
+商家账号缺失时，进程退出，日志是 `Shop startup failed: MERCHANT_ACCOUNT_REQUIRED`。云托管界面上就是 `Back-off restarting failed container`。
 
-没有部署脚本、自动创建环境动作或商户凭证。需要新的用户授权才能执行开通、部署、发布和实际支付接入。
+配置正确时，日志先出现 `Shop HTTP service listening`，连上数据库后出现 `Database connection ready.`。支付商户号已填时再出现 `WeChat Pay ready.`。
+
+`/health` 返回 200 且 `database` 为 `mysql`，表示可以接流量。数据库空闲暂停后恢复时，日志里会出现 `CynosDB serverless instance is resuming`，进程保持监听并重试，不用为此重启。这段时间 `/health` 是 503，存活探针看容器端口即可。
+
+## 支付
+
+支付走开放接口，容器内请求 `http://api.weixin.qq.com/_/pay/unifiedOrder`。不放商户证书，也不需要公网回调域名。结果由云托管打到容器的 `/wechat/pay/notify`，退款打到 `/wechat/refund/notify`。服务会再查一次单，确认商户号、openid 和金额后才改订单。
+
+小程序侧必须用真机完成收银台。开发者工具不能完成真实付款。买家身份来自云托管附带的 `x-wx-openid`，并且要求调用来源是小程序或开发者工具。
+
+商家后台退款没有小程序请求头。云托管会提供 `CBR_ENV_ID`，服务用它作为退款环境。服务名默认 `pet-shop`，不一致时设置 `WECHAT_CLOUD_SERVICE`。
+
+## 数据与备份
+
+订单、库存和店铺设置保存在 MySQL 表 `shop_state` 的一行 JSON 里，支付单在 `wechat_trades`，审计在 `audit_log`。一次改库存和订单使用 InnoDB 事务。这是单店低并发的做法，历史订单变多以后这一行会变大。
+
+上传的图片写在容器磁盘，重新发布或扩缩容后会消失。正式图片不要只放在容器里。
+
+云托管 MySQL 控制台没有内置备份。需要备份时到腾讯云数据库控制台配置。本地 MongoDB 的 `npm run db:backup` 不作用于这块云数据库。
+
+## 还没做完
+
+部分退款、换货、真机支付验收、图片云存储，以及支付测试期间把最小实例数保持为 1。缩到 0 之后，支付回调可能撞上冷启动。

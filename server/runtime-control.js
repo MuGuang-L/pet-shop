@@ -1,6 +1,7 @@
 'use strict';
 const fs=require('node:fs'),path=require('node:path'),net=require('node:net'),crypto=require('node:crypto');
-function endpoint(root){const real=fs.realpathSync(root),id=crypto.createHash('sha256').update(process.platform==='win32'?real.toLowerCase():real).digest('hex').slice(0,24);return process.platform==='win32'?'\\\\.\\pipe\\pet-shop-'+id:'\0pet-shop-'+id;}
+function endpoint(root){const real=fs.realpathSync(root),id=crypto.createHash('sha256').update(process.platform==='win32'?real.toLowerCase():real).digest('hex').slice(0,24);if(process.platform==='win32')return '\\\\.\\pipe\\pet-shop-'+id;if(process.platform==='linux')return '\0pet-shop-'+id;return path.join('/tmp','pet-shop-'+id+'.sock');}
+function socketBusy(address){return new Promise(resolve=>{const probe=net.createConnection(address);const done=busy=>{probe.destroy();resolve(busy);};probe.once('connect',()=>done(true));probe.once('error',()=>done(false));});}
 function atomicJson(file,value){fs.mkdirSync(path.dirname(file),{recursive:true});const temp=file+'.'+crypto.randomUUID()+'.tmp';try{fs.writeFileSync(temp,JSON.stringify(value,null,2)+'\n',{mode:0o600});fs.renameSync(temp,file);}finally{if(fs.existsSync(temp))fs.unlinkSync(temp);}}
 function eventLog(directory,event){
  fs.mkdirSync(directory,{recursive:true});const file=path.join(directory,'events.jsonl');
@@ -20,7 +21,8 @@ async function listen(root,{token,status,stop}){
    }catch{socket.end('{"ok":false,"error":"CONTROL_FAILED"}\n');}})();
   });
  });
- await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(endpoint(root),()=>{server.removeListener('error',reject);resolve();});});return server;
+ const address=endpoint(root);if(address.startsWith('/')&&fs.existsSync(address)&&!await socketBusy(address))fs.unlinkSync(address);
+ await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(address,()=>{server.removeListener('error',reject);resolve();});});return server;
 }
 async function request(root,input,timeout=5000){
  return new Promise((resolve,reject)=>{const socket=net.createConnection(endpoint(root));let raw='';
