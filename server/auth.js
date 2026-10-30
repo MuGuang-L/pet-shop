@@ -64,7 +64,9 @@ class Auth{
  identity(req){const token=this.token(req),session=this.sessions.get(token);if(!session||session.expiresAt<=this.now()){this.sessions.delete(token);throw Error('AUTH_REQUIRED');}return session.identity;}
  cloudBuyer(req){
   const read=name=>{const value=req.headers[name];return typeof value==='string'?value.trim():'';};
-  const openid=read('x-wx-openid'),source=read('x-wx-source');
+  // CloudBase uses X-WX-FROM-OPENID when this service is reached through
+  // resource reuse.  It is the end user's trusted identifier in that route.
+  const openid=read('x-wx-openid')||read('x-wx-from-openid'),source=read('x-wx-source');
   if(!openid&&!source)return null;
   if(!/^[A-Za-z0-9_-]{8,64}$/.test(openid)||!['wx_client','wx_devtools'].includes(source))throw Error('AUTH_REQUIRED');
   return {id:'wx:'+openid,merchant:false,openid,appid:read('x-wx-appid'),channel:'wechat'};

@@ -30,6 +30,7 @@ test('未配置时支付动作和回调保持关闭',async()=>{const store=memor
 test('小程序身份可以拉起 JSAPI 支付，回调入账且重复通知幂等',async()=>{const now=Date.now();const fx=await boot(()=>now);try{
   const forged=await fx.post('/auth/me',{},undefined,{'x-wx-openid':'openid-buyer'});assert.equal(forged.status,401);
   const me=await fx.post('/auth/me',{},undefined,buyerHeaders);assert.equal(me.body.data.openid,'openid-buyer');assert.equal(me.body.data.channel,'wechat');
+  const reused=await fx.post('/auth/me',{},undefined,{'x-wx-from-openid':'openid-reused','x-wx-source':'wx_client'});assert.equal(reused.body.data.openid,'openid-reused');
   const address=await fx.post('/api',{action:'saveAddress',input:{name:'微信买家',phone:'13800000000',detail:'样例街道 8 号'}},undefined,buyerHeaders);
   const order=await fx.post('/api',{action:'createOrder',input:{key:'wechat-pay-1',addressId:address.body.data.id,lines:[{productId:'food',skuId:'food-1',qty:1}]}},undefined,buyerHeaders);
   const pay=await fx.post('/api',{action:'payment',input:{id:order.body.data.id}},undefined,buyerHeaders);

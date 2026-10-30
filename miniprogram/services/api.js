@@ -20,7 +20,7 @@ function requestOnce(endpoint,data,apiBase,token){
  if(cloud){
   const target=config.cloud||{};
   if(!target.env||!target.service)return Promise.reject(Error('请在 miniprogram/config.local.js 填写云托管环境 ID 和服务名'));
-  return new Promise((resolve,reject)=>wx.cloud.callContainer({config:{env:target.env},path:endpoint,method:'POST',header:{'X-WX-SERVICE':target.service,'Content-Type':'application/json'},data,timeout:15000,success:r=>accept(endpoint,token,r,resolve,reject),fail:()=>reject(Object.assign(Error('连接云托管失败，请检查环境 ID、服务名和云托管服务状态'),{retryable:true,definitive:false}))}));
+  return new Promise((resolve,reject)=>wx.cloud.callContainer({config:{env:target.env},path:endpoint,method:'POST',header:{'X-WX-SERVICE':target.service,'Content-Type':'application/json'},data,timeout:15000,success:r=>accept(endpoint,token,r,resolve,reject),fail:error=>{const detail=String(error?.errMsg||error?.message||'UNKNOWN').replace(/\s+/g,' ').slice(0,160);reject(Object.assign(Error('连接云托管失败：'+detail),{retryable:true,definitive:false}));}}));
  }
  return new Promise((resolve,reject)=>wx.request({url:apiBase+endpoint,method:'POST',data,header:{'Content-Type':'application/json',...(token?{Authorization:'Bearer '+token}:{})},timeout:15000,success:r=>accept(endpoint,token,r,resolve,reject),fail:()=>reject(Object.assign(Error('连接联调服务失败，请检查服务地址、服务状态和网络'),{retryable:true,definitive:false}))}));
 }
