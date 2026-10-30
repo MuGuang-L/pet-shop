@@ -1,6 +1,6 @@
 'use strict';
 const fs=require('node:fs');
-const {MongoStore}=require('./mongo-store');
+const {MysqlStore}=require('./mysql-store');
 const {createServer}=require('./http');
 const {loadWechat}=require('./wechat-config');
 const {Auth,createAccount,location}=require('./auth');
@@ -12,13 +12,14 @@ function resolveAuth(){
  return new Auth([createAccount(username,password,'merchant','merchant')]);
 }
 
-// Keep HTTP available while MongoDB starts. Never buffer writes while offline.
-async function start({connect=()=>MongoStore.connect(),port=4173,host='127.0.0.1',retryDelay=1000,logger=console,httpOptions={},backupOptions=null}={}){
+function connectDatabase(){return process.env.MYSQL_HOST?MysqlStore.connect():require('./mongo-store').MongoStore.connect();}
+// Keep HTTP available while the database starts, including a paused serverless MySQL instance. Never buffer writes while offline.
+async function start({connect=connectDatabase,port=4173,host='127.0.0.1',retryDelay=1000,logger=console,httpOptions={},backupOptions=null}={}){
  let store=null,stopping=false,retryTimer=null,connecting=null,ticking=false,tickTask=null,delay=retryDelay;
  const backups=backupOptions?require('./backup-scheduler').createBackupScheduler({...backupOptions,getStore:()=>current(),logger}):null;
- const current=()=>{if(store)return store;const error=Error('DATABASE_NOT_READY');error.name='MongoServerSelectionError';throw error;};
+ const current=()=>{if(store)return store;const error=Error('DATABASE_NOT_READY');error.name='MysqlUnavailable';throw error;};
  const wechat=httpOptions.wechat===undefined?loadWechat():httpOptions.wechat;
- const facade={get db(){return current().db;},execute:(...args)=>current().execute(...args),settlePayment:(payload,at)=>current().settlePayment(payload,at),settleRefund:(payload,at)=>current().settleRefund(payload,at)};
+ const facade={get engine(){return current().engine;},ping:()=>{const db=current();return typeof db.ping==='function'?db.ping():db.db.command({ping:1});},get db(){return current().db;},execute:(...args)=>current().execute(...args),settlePayment:(payload,at)=>current().settlePayment(payload,at),settleRefund:(payload,at)=>current().settleRefund(payload,at),upsertTrade:doc=>current().upsertTrade(doc),getTrade:id=>current().getTrade(id),tradesByOrder:id=>current().tradesByOrder(id)};
  const server=createServer(facade,{...httpOptions,auth:httpOptions.auth||resolveAuth(),wechat});
  await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(port,host,()=>{server.removeListener('error',reject);resolve();});});
  const attempt=()=>{
@@ -26,9 +27,9 @@ async function start({connect=()=>MongoStore.connect(),port=4173,host='127.0.0.1
    try{const connected=await connect();if(stopping){await connected.close();return;}store=connected;logger.log('Database connection ready.');if(backups){backups.start();void backups.tick();}}
    catch(e){
     if(stopping)return;
-    logger.error('Database initialization unavailable:',e.name);
-    // Retry transient connectivity failures; configuration errors need correction.
-    if(/Mongo(Network|ServerSelection|Timeout|PoolCleared|WaitQueueTimeout)/.test(e.name)){
+    logger.error('Database initialization unavailable:',e.name,e.message||'');
+    // Retry paused or unreachable MySQL. A wrong database name or password is logged once.
+    if(e.name==='MysqlUnavailable'||/Mongo(Network|ServerSelection|Timeout|PoolCleared|WaitQueueTimeout)/.test(e.name)){
      retryTimer=setTimeout(attempt,delay);retryTimer.unref();delay=Math.min(delay*2,30000);
     }
    }
@@ -52,8 +53,12 @@ async function start({connect=()=>MongoStore.connect(),port=4173,host='127.0.0.1
 }
 if(require.main===module){
  const port=Number(process.env.PORT)||4173,host=process.env.PORT?'0.0.0.0':'127.0.0.1';
- const ready=start({port,host,backupOptions:{intervalMs:Number(process.env.BACKUP_INTERVAL_HOURS||24)*3600000,keep:Number(process.env.BACKUP_KEEP||14),minAgeDays:Number(process.env.BACKUP_MIN_AGE_DAYS||7)}});
+ const mysql=Boolean(process.env.MYSQL_HOST);
+ const ready=start({port,host,backupOptions:mysql?null:{intervalMs:Number(process.env.BACKUP_INTERVAL_HOURS||24)*3600000,keep:Number(process.env.BACKUP_KEEP||14),minAgeDays:Number(process.env.BACKUP_MIN_AGE_DAYS||7)}});
  require('./process-lifecycle').attachShutdown(async()=>{const service=await ready.catch(()=>null);if(service)await service.stop();});
- ready.catch(e=>{console.error('Shop startup failed:',e.name);process.exit(1);});
+ // Keep the error code visible in platform logs.  CloudBase only reports a
+ // generic restart loop when PID 1 exits, so printing just `Error` makes a
+ // missing runtime variable impossible to diagnose.
+ ready.catch(e=>{console.error('Shop startup failed:',e?.message||e?.name||'UNKNOWN_STARTUP_ERROR');process.exit(1);});
 }
 module.exports={start};

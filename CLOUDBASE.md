@@ -32,3 +32,34 @@
 - 真机和微信开发者工具界面测试，尤其是 WXML 支持、布局、图片权限、网络中断后恢复。网页预览不能替代。
 
 没有部署脚本、自动创建环境动作或商户凭证。需要新的用户授权才能执行开通、部署、发布和实际支付接入。
+
+## CloudBase Containers 启动调试
+
+当前容器入口是仓库根目录的 `Dockerfile`，启动命令为
+`node server/index.js`。云托管会传入 `PORT`，服务会监听
+`0.0.0.0:$PORT`；请在 Containers 扩展的运行配置中使用该 Dockerfile
+并把容器端口设为 `80`（云托管传入其他 `PORT` 时以该变量为准）。
+
+部署环境不包含 `.local/`，因此不能依赖本机执行 `npm run setup` 后生成
+的账号。云托管版本使用同环境的 MySQL，不要开启数据库外网地址。至少配置以下运行时环境变量：
+
+| 变量 | 要求 |
+| --- | --- |
+| `PORT` | `80`。未设置时进程只监听本机 `4173`，容器探针会显示 connection refused |
+| `MERCHANT_USERNAME` | 小写商家用户名，匹配 `^[a-z0-9][a-z0-9_-]{0,79}$` |
+| `MERCHANT_PASSWORD` | 8–200 个字符；在 CloudBase 的环境变量/密钥配置中保存，不提交代码 |
+| `MYSQL_HOST` | 云托管 MySQL 的内网地址。设置后服务使用 MySQL，不再连接 MongoDB |
+| `MYSQL_PORT` | 默认 `3306` |
+| `MYSQL_USER` | 控制台创建实例时设置的账号 |
+| `MYSQL_PASSWORD` | 控制台创建实例时设置的密码，不提交代码 |
+| `MYSQL_DATABASE` | 默认 `pet_shop`；只允许字母、数字和下划线 |
+
+支付使用开放接口服务，不把商户证书放进容器。环境变量 `WECHAT_MCH_ID` 为已在云托管控制台绑定的商户号；未配置不会阻止服务启动。开启「开放接口服务」后需要重新发布版本。支付回调由云托管打到容器，不使用公网 `notify_url`。
+若未提供商家账号，启动日志会显示
+`Shop startup failed: MERCHANT_ACCOUNT_REQUIRED`，这正是 CloudBase 显示
+`Back-off restarting failed container` 的一个直接原因。配置完成后在扩展
+的调试日志中应先看到 `Shop HTTP service listening`；随后 MySQL 连通时会
+看到 `Database connection ready.`。数据库暂停恢复时日志可能出现
+`CynosDB serverless instance is resuming`，服务会重试，不需要重启。
+`/health` 返回 200 且 `database` 为 `mysql` 才表示数据库也已就绪。
+云托管 MySQL 没有内置备份，需要备份时在腾讯云控制台配置。

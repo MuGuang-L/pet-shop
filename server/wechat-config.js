@@ -39,11 +39,12 @@ function loadWechat(){
     privateKey:String(pick('privateKey','WECHAT_MCH_PRIVATE_KEY')||readKey(pick('privateKeyPath','WECHAT_MCH_PRIVATE_KEY_PATH'))),
     platformPublicKeyId:String(pick('platformPublicKeyId','WECHAT_PAY_PUBLIC_KEY_ID')),
     platformPublicKey:String(pick('platformPublicKey','WECHAT_PAY_PUBLIC_KEY')||readKey(pick('platformPublicKeyPath','WECHAT_PAY_PUBLIC_KEY_PATH')||pick('platformCertPath','WECHAT_PLATFORM_CERT_PATH'))),
+    cloudEnv:String(pick('cloudEnv','WECHAT_CLOUD_ENV')).trim(),
+    cloudService:String(pick('cloudService','WECHAT_CLOUD_SERVICE')||'pet-shop').trim(),
     publicOrigin
   };
   const https=/^https:\/\/[a-zA-Z0-9.-]+(?::\d+)?$/.test(publicOrigin);
-  const payMissing=['appId','mchId','mchSerial','privateKey'].filter(key=>!config[key]);
-  if(Buffer.byteLength(config.apiV3Key||'')!==32)payMissing.push('apiV3Key');
+  const payMissing=config.mchId?[]:['mchId'];
   return {
     config,payReady:payMissing.length===0,payMissing,
     payNotifyUrl:https?publicOrigin+'/wechat/pay/notify':'',

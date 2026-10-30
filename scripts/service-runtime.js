@@ -37,7 +37,7 @@ async function preflight(config){
  await available(4173);if(config.manageMongo)await available(27018);if(config.natapp.enabled)await checkTunnelAbsent(config.natapp.binary);
  if(!fs.existsSync(path.join(dataDirectory,'auth/accounts.json')))throw error('ACCOUNTS_NOT_CONFIGURED');
 }
-async function httpReady(origin,runtimeId){try{const r=await fetch(origin+'/health',{signal:AbortSignal.timeout(2500)});if(!r.ok)return false;const h=await r.json();return h.ok===true&&h.database==='mongodb'&&h.runtimeId===runtimeId;}catch{return false;}}
+async function httpReady(origin,runtimeId){try{const r=await fetch(origin+'/health',{signal:AbortSignal.timeout(2500)});if(!r.ok)return false;const h=await r.json();return h.ok===true&&(h.database==='mongodb'||h.database==='mysql')&&h.runtimeId===runtimeId;}catch{return false;}}
 async function start({config=readConfig(),check=preflight,intervalMs=5000}={}){
  const token=crypto.randomBytes(32).toString('hex'),runtimeId=crypto.randomUUID(),startedAt=new Date().toISOString();let manager,server,timer,stopPromise,stateWriteError=null;
  const mongo=new MongoClient(config.uri,{serverSelectionTimeoutMS:2000,connectTimeoutMS:2000,socketTimeoutMS:2500,maxPoolSize:1});

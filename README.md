@@ -80,7 +80,7 @@ database 和 backend 均为 healthy 后，打开商家 Web；`http://127.0.0.1:4
 - 整单售后、审核、撤回、退货登记、实收及可售数量验收、退货入库、模拟退款重试。
 - 服务侧权限校验、用户订单隔离、库存事务、幂等操作及超时取消。
 
-小程序在云托管里用微信身份下单。`miniprogram/config.local.js` 填写云托管环境 ID，服务名默认 `pet-shop`。买家不再使用测试账号。商户参数放在 `.local/wechat.json`（示例见 `wechat.example.json`），`appId` 必须是这个小程序的 AppID。支付结果通知地址用云托管公网域名，写入 `publicOrigin` 或环境变量 `PUBLIC_ORIGIN`。商家后台仍用账号密码。本机未切到云托管时，小程序继续用买家测试账号和模拟付款。部分退款、换货、生产部署及上线验收未完成。
+小程序在云托管里用微信身份下单。`miniprogram/config.local.js` 填写云托管环境 ID，服务名默认 `pet-shop`。买家不再使用测试账号。支付走云托管开放接口服务：控制台打开「开放接口服务」并绑定商户号，容器内请求 `http://api.weixin.qq.com/_/pay/unifiedOrder`，支付结果回调打到服务自己的 `/wechat/pay/notify`，不需要商户证书，也不需要公网回调域名。环境变量 `WECHAT_MCH_ID` 填商户号（也可写在 `.local/wechat.json` 的 `mchId`，示例见 `wechat.example.json`）。商家后台仍用账号密码。本机未切到云托管时，小程序继续用买家测试账号和模拟付款。部分退款、换货、生产部署及上线验收未完成。
 
 ## 检查与测试
 
