@@ -50,7 +50,8 @@ async function start({config=readConfig(),check=preflight,intervalMs=5000}={}){
  try{
   server=await control.listen(root,{token,status,stop});await check(config);
   control.atomicJson(path.join(directory,'control.json'),{token});
-  const env={...process.env,PUBLIC_ORIGIN:config.publicOrigin,SHOP_DATA_DIR:dataDirectory,SHOP_RUNTIME_ID:runtimeId,MONGODB_URI:config.uri,SHOP_MONGO_DIR:path.join(dataDirectory,'mongodb')};
+  const env={...process.env,SHOP_DATA_DIR:dataDirectory,SHOP_RUNTIME_ID:runtimeId,MONGODB_URI:config.uri,SHOP_MONGO_DIR:path.join(dataDirectory,'mongodb')};
+  if(config.publicOrigin)env.PUBLIC_ORIGIN=config.publicOrigin;
   const services=[{id:'database',external:!config.manageMongo,command:process.execPath,args:['scripts/mongo-local.js'],cwd:root,env,ipc:true,probe:async()=>{try{await mongo.connect();const h=await mongo.db('admin').command({hello:1});return (config.manageMongo?h.setName==='petshop':Boolean(h.setName))&&h.isWritablePrimary===true;}catch{return false;}}},
    {id:'backend',dependencies:['database'],command:process.execPath,args:['server/index.js'],cwd:root,env,ipc:true,probe:()=>httpReady('http://127.0.0.1:4173',runtimeId)}];
   if(config.natapp.enabled)services.push({id:'tunnel',dependencies:['backend'],command:process.execPath,args:['scripts/tunnel-worker.js'],cwd:root,env:{...env,PET_TUNNEL_BINARY:config.natapp.binary,PET_TUNNEL_CONFIG:config.natapp.config},ipc:true,probe:()=>httpReady(config.publicOrigin,runtimeId)});

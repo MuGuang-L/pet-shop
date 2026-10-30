@@ -1,13 +1,25 @@
 'use strict';
+const fs=require('node:fs');
 const {MongoStore}=require('./mongo-store');
 const {createServer}=require('./http');
+const {loadWechat}=require('./wechat-config');
+const {Auth,createAccount,location}=require('./auth');
+function resolveAuth(){
+ if(fs.existsSync(location))return new Auth();
+ const username=String(process.env.MERCHANT_USERNAME||'').trim().toLowerCase();
+ const password=process.env.MERCHANT_PASSWORD||'';
+ if(!/^[a-z0-9][a-z0-9_-]{0,79}$/.test(username)||password.length<8||password.length>200)throw Error('MERCHANT_ACCOUNT_REQUIRED');
+ return new Auth([createAccount(username,password,'merchant','merchant')]);
+}
 
 // Keep HTTP available while MongoDB starts. Never buffer writes while offline.
 async function start({connect=()=>MongoStore.connect(),port=4173,host='127.0.0.1',retryDelay=1000,logger=console,httpOptions={},backupOptions=null}={}){
  let store=null,stopping=false,retryTimer=null,connecting=null,ticking=false,tickTask=null,delay=retryDelay;
  const backups=backupOptions?require('./backup-scheduler').createBackupScheduler({...backupOptions,getStore:()=>current(),logger}):null;
  const current=()=>{if(store)return store;const error=Error('DATABASE_NOT_READY');error.name='MongoServerSelectionError';throw error;};
- const server=createServer({db:{command:input=>current().db.command(input)},execute:(...args)=>current().execute(...args)},httpOptions);
+ const wechat=httpOptions.wechat===undefined?loadWechat():httpOptions.wechat;
+ const facade={get db(){return current().db;},execute:(...args)=>current().execute(...args),settlePayment:(payload,at)=>current().settlePayment(payload,at),settleRefund:(payload,at)=>current().settleRefund(payload,at)};
+ const server=createServer(facade,{...httpOptions,auth:httpOptions.auth||resolveAuth(),wechat});
  await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(port,host,()=>{server.removeListener('error',reject);resolve();});});
  const attempt=()=>{
   connecting=(async()=>{
@@ -35,10 +47,12 @@ async function start({connect=()=>MongoStore.connect(),port=4173,host='127.0.0.1
   if(backups)await backups.stop();if(connecting)await connecting;if(tickTask)await tickTask;if(store)await store.close();
  })());
  logger.log('Shop HTTP service listening; database readiness is reported by /health.');
+ logger.log(wechat?.payReady?'WeChat Pay ready.':'WeChat Pay is not configured: '+(wechat?.payMissing||['config']).join(', '));
  return {server,stop};
 }
 if(require.main===module){
- const ready=start({backupOptions:{intervalMs:Number(process.env.BACKUP_INTERVAL_HOURS||24)*3600000,keep:Number(process.env.BACKUP_KEEP||14),minAgeDays:Number(process.env.BACKUP_MIN_AGE_DAYS||7)}});
+ const port=Number(process.env.PORT)||4173,host=process.env.PORT?'0.0.0.0':'127.0.0.1';
+ const ready=start({port,host,backupOptions:{intervalMs:Number(process.env.BACKUP_INTERVAL_HOURS||24)*3600000,keep:Number(process.env.BACKUP_KEEP||14),minAgeDays:Number(process.env.BACKUP_MIN_AGE_DAYS||7)}});
  require('./process-lifecycle').attachShutdown(async()=>{const service=await ready.catch(()=>null);if(service)await service.stop();});
  ready.catch(e=>{console.error('Shop startup failed:',e.name);process.exit(1);});
 }

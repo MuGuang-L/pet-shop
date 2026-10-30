@@ -62,7 +62,25 @@ class Auth{
   return typeof token==='string'&&/^[a-f0-9]{64}$/.test(token)?token:undefined;
  }
  identity(req){const token=this.token(req),session=this.sessions.get(token);if(!session||session.expiresAt<=this.now()){this.sessions.delete(token);throw Error('AUTH_REQUIRED');}return session.identity;}
+ cloudBuyer(req){
+  const read=name=>{const value=req.headers[name];return typeof value==='string'?value.trim():'';};
+  const openid=read('x-wx-openid'),source=read('x-wx-source');
+  if(!openid&&!source)return null;
+  if(!/^[A-Za-z0-9_-]{8,64}$/.test(openid)||!['wx_client','wx_devtools'].includes(source))throw Error('AUTH_REQUIRED');
+  return {id:'wx:'+openid,merchant:false,openid,appid:read('x-wx-appid'),channel:'wechat'};
+ }
  logout(req){this.sessions.delete(this.token(req));}
+ openSession(identity){
+  if(!identity||typeof identity.id!=='string'||!identity.id.length||identity.id.length>128||identity.merchant!==false||typeof identity.openid!=='string'||!identity.openid.length)throw Error('AUTH_REQUIRED');
+  const issuedAt=this.now();this.prune(issuedAt);
+  const ownTokens=[...this.sessions].filter(([,session])=>session.identity.id===identity.id).map(([token])=>token);
+  while(ownTokens.length>=8)this.sessions.delete(ownTokens.shift());
+  while(this.sessions.size>=256)this.sessions.delete(this.sessions.keys().next().value);
+  const token=crypto.randomBytes(32).toString('hex');
+  const sessionIdentity={id:identity.id,merchant:false,openid:identity.openid,channel:'wechat'};
+  this.sessions.set(token,{identity:sessionIdentity,expiresAt:issuedAt+sessionTtl});
+  return {token,identity:sessionIdentity,expiresIn:sessionTtl/1000};
+ }
 }
 const buyerActions=new Set(['catalog','storefront','homeContent','identity','addresses','saveAddress','deleteAddress','createOrder','orders','ordersPage','order','cancel','payment','mockPay','confirmReceipt','tracking','refundRequest','refundWithdraw','returnShip']);
 const merchantActions=new Set(['catalog','storefront','homeContent','identity','merchantProducts','merchantOrders','merchantOrdersPage','order','tracking','saveProduct','saveStorefront','saveHomeContent','ship','pickupReady','pickupRedeem','refundReview','returnInspect','refundFail','mockRefund']);

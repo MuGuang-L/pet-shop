@@ -34,7 +34,26 @@ function settleVerifiedPayment(state,p,now=Date.now()) {
   if(o.payment){need(o.payment.transactionId===p.transactionId,'PAYMENT_CONFLICT');s.events[key]=fingerprint;return {state:s,result:clone(o)};}
   need(['PENDING','CANCELLED','EXPIRED'].includes(o.status),'INVALID_STATE');
   o.payment={provider:'WECHAT',transactionId:p.transactionId,amount:p.amount};
+  if(typeof p.outTradeNo==='string'&&/^[A-Za-z0-9_-]{6,32}$/.test(p.outTradeNo))o.payment.outTradeNo=p.outTradeNo;
   if(o.status==='PENDING')o.status='PAID';else {o.refund={status:'PROCESSING',previous:o.status,reason:'关闭后到账，待真实退款补偿',latePayment:true};o.status='REFUNDING';}
+  o.updatedAt=now;s.events[key]=fingerprint;return {state:s,result:clone(o)};
+}
+// Called only by the verified WeChat refund gateway, never by a buyer request.
+function settleVerifiedRefund(state,p,now=Date.now()) {
+  const s=clone(state);
+  need(p&&typeof p.eventId==='string'&&p.eventId.length>0&&typeof p.refundId==='string'&&p.refundId.length>0,'REFUND_EVENT_REQUIRED');
+  const o=s.orders.find(o=>o.id===p.orderId);need(o,'ORDER_NOT_FOUND');
+  need(p.currency==='CNY'&&p.amount===o.total&&Number.isSafeInteger(p.amount),'REFUND_AMOUNT_MISMATCH');
+  const key=JSON.stringify(['refund',p.eventId]);
+  const fingerprint=JSON.stringify([p.orderId,p.refundId,p.amount,p.currency]);
+  if(s.events[key]){need(s.events[key]===fingerprint,'REFUND_EVENT_CONFLICT');return {state:s,result:clone(o)};}
+  if(o.status==='REFUNDED'&&o.refund&&o.refund.refundId===p.refundId){s.events[key]=fingerprint;return {state:s,result:clone(o)};}
+  need(o.status==='REFUNDING','INVALID_STATE');
+  o.refund=aftersales.normalized(o);
+  need(['WAIT_REFUND','REFUND_FAILED'].includes(o.refund.stage),'INVALID_STATE');
+  if(o.refund.previous==='PAID')release(s,o);
+  o.status='REFUNDED';o.refund.status='SUCCEEDED';o.refund.stage='SUCCEEDED';o.refund.provider='WECHAT';o.refund.refundId=p.refundId;o.refund.refundedAt=now;
+  o.refund.timeline.push({at:now,actor:'系统',action:'wechatRefund',label:'微信退款到账',detail:'微信退款单 '+p.refundId});
   o.updatedAt=now;s.events[key]=fingerprint;return {state:s,result:clone(o)};
 }
 function orderQuery(input={}){const page=input.page??1,pageSize=input.pageSize??10,q=input.q??'',status=input.status??'ALL';need(Number.isInteger(page)&&page>=1&&page<=100000,'INVALID_PAGE');need(Number.isInteger(pageSize)&&pageSize>=1&&pageSize<=50,'INVALID_PAGE_SIZE');need(typeof q==='string'&&q.length<=80,'INVALID_SEARCH');need(['ALL','AFTERSALE','PENDING','PAID','SHIPPED','COMPLETED','CANCELLED','EXPIRED','REFUND_REQUESTED','REFUNDING','REFUNDED'].includes(status),'INVALID_STATUS');const fulfillment=input.fulfillment||'ALL';need(['ALL','PICKUP','DELIVERY'].includes(fulfillment),'INVALID_FULFILLMENT');return {page,pageSize,q:q.trim().toLowerCase(),status,fulfillment};}
@@ -110,4 +129,4 @@ function execute(state,actor,action,input={},options={}) {
   if(mutationKey)s.keys[mutationKey]={fingerprint:mutationFingerprint,result:clone(result)};
   return {state:s,result:clone(result)};
 }
-module.exports={seed,execute,expire,settleVerifiedPayment,orderQuery,orderPage};
+module.exports={seed,execute,expire,settleVerifiedPayment,settleVerifiedRefund,orderQuery,orderPage};

@@ -1,6 +1,6 @@
 'use strict';
 const {MongoClient}=require('mongodb');
-const {seed,execute,orderQuery}=require('../cloudfunctions/shop/domain');
+const {seed,execute,orderQuery,settleVerifiedPayment,settleVerifiedRefund}=require('../cloudfunctions/shop/domain');
 const inventory=require('../cloudfunctions/shop/inventory');
 const {loadScope,stateFrom}=require('./mongo-scope');
 const {randomUUID,createHash}=require('node:crypto');
@@ -33,6 +33,9 @@ class MongoStore{
   await this.db.collection('orders').createIndex({status:1,expiresAt:1,_id:1});
   await this.db.collection('orders').createIndex({'value.lines.productId':1,status:1});
   await this.db.collection('orders').createIndex({'value.fulfillment.code':1,status:1});
+  await this.db.collection('orders').createIndex({'value.payment.transactionId':1},{unique:true,partialFilterExpression:{'value.payment.transactionId':{$type:'string'}}});
+  try{await this.db.createCollection('wechat_trades');}catch(e){if(e.code!==48)throw e;}
+  await this.db.collection('wechat_trades').createIndex({orderId:1,createdAt:-1});
   for(const name of ['products','orders','stock_movements'])await this.db.collection(name).createIndex({position:1,_id:1});
   await this.db.collection('audit_log').createIndex({at:-1});
   await this.db.collection('stock_movements').createIndex({orderId:1,caseId:1});
@@ -114,6 +117,25 @@ class MongoStore{
   },{readConcern:{level:'snapshot'},writeConcern:{w:'majority'},timeoutMS:60000});}finally{await session.endSession();}
  }
  async restore(state){return this.restoreSnapshot({state,audit:[],revision:0,backupId:'legacy-format-1'});}
+ async settlePayment(payload,now=Date.now()){return this.settleVerified('payment',payload,now);}
+ async settleRefund(payload,now=Date.now()){return this.settleVerified('refund',payload,now);}
+ async settleVerified(kind,payload,now){
+  const session=this.client.startSession();let result;
+  try{await transaction(session,async()=>{
+   const meta=await this.db.collection('shop_meta').findOne({_id:'settings'},{session});if(!meta)throw Error('DATABASE_NOT_INITIALIZED');
+   const orderDoc=await this.read('orders').findOne({_id:payload.orderId},{session});if(!orderDoc)throw Error('ORDER_NOT_FOUND');
+   if(kind==='payment'){const reused=await this.read('orders').findOne({_id:{$ne:payload.orderId},'value.payment.transactionId':payload.transactionId},{session,projection:{_id:1}});if(reused)throw Error('TRANSACTION_REUSED');}
+   const productIds=[...new Set((orderDoc.value.lines||[]).map(line=>line.productId))];
+   const products=productIds.length?await this.read('products').find({_id:{$in:productIds}},{session}).toArray():[];
+   const eventKey=JSON.stringify([kind==='payment'?'payment':'refund',payload.eventId]);
+   const eventDoc=await this.db.collection('payment_events').findOne({_id:hash(eventKey)},{session});
+   const docs={products,orders:[orderDoc],address_books:[],idempotency_keys:[],payment_events:eventDoc?[eventDoc]:[],stock_movements:[]};
+   const state=stateFrom(meta,docs);
+   const out=(kind==='payment'?settleVerifiedPayment:settleVerifiedRefund)(state,payload,now);
+   await this.persist(state,out.state,meta,session,{id:'wechat-pay'},kind==='payment'?'settleVerifiedPayment':'settleVerifiedRefund',docs);
+   result=out.result;
+  },{readConcern:{level:'snapshot'},writeConcern:{w:'majority'}});return result;}finally{await session.endSession();}
+ }
  async close(){await this.client.close();}
 }
 module.exports={MongoStore};
