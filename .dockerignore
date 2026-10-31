@@ -5,3 +5,5 @@
 node_modules
 tests
 *.md
+**/*.pem
+**/*.key

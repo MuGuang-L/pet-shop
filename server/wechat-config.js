@@ -31,6 +31,7 @@ function loadWechat(){
   try{const runtime=JSON.parse(fs.readFileSync(path.join(dataDirectory,'runtime/config.json'),'utf8'));if(typeof runtime.publicOrigin==='string')runtimeOrigin=runtime.publicOrigin.trim();}catch{}
   const publicOrigin=fromEnv||String(json.publicOrigin||'').trim()||runtimeOrigin;
   const config={
+    payMode:String(pick('payMode','WECHAT_PAY_MODE')||'cloud'),
     appId:String(pick('appId','WECHAT_APPID')||process.env.WECHAT_OA_APPID||''),
     appSecret:String(pick('appSecret','WECHAT_OA_SECRET')),
     mchId:String(pick('mchId','WECHAT_MCH_ID')),
@@ -44,15 +45,16 @@ function loadWechat(){
     publicOrigin
   };
   const https=/^https:\/\/[a-zA-Z0-9.-]+(?::\d+)?$/.test(publicOrigin);
-  const payMissing=config.mchId?[]:['mchId'];
+  if(!['cloud','direct'].includes(config.payMode))throw Error('WECHAT_PAY_MODE_INVALID');
+  const payMissing=config.payMode==='direct'?require('./wechat-v3').missingV3(config):(config.mchId?[]:['mchId']);
   // CBR_ENV_ID is injected by WeChat hosting, never inferred from request headers.
   // An explicit false override also supports HTTP-only deployments on that platform.
   const trustCloud=process.env.WECHAT_TRUST_CLOUD_HEADERS==='true'||(!!process.env.CBR_ENV_ID&&process.env.WECHAT_TRUST_CLOUD_HEADERS!=='false');
   if(trustCloud&&!/^wx[0-9a-f]{16}$/.test(config.appId))throw Error('WECHAT_APPID_REQUIRED_FOR_CLOUD_IDENTITY');
   return {
     config,payReady:payMissing.length===0,payMissing,cloudIdentity:{enabled:trustCloud,appId:config.appId},
-    payNotifyUrl:https?publicOrigin+'/wechat/pay/notify':'',
-    refundNotifyUrl:https?publicOrigin+'/wechat/refund/notify':''
+    payNotifyUrl:https?publicOrigin+(config.payMode==='direct'?'/wechat/pay/v3/notify':'/wechat/pay/notify'):'',
+    refundNotifyUrl:https?publicOrigin+(config.payMode==='direct'?'/wechat/refund/v3/notify':'/wechat/refund/notify'):''
   };
 }
 module.exports={loadWechat};

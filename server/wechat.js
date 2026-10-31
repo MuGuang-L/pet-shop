@@ -35,12 +35,18 @@ class TradeBook{
 
 function createWechat({settings,store,auth,fetch:fetchImpl=global.fetch,now=()=>Date.now()}={}){
   const config=settings?.config||{};
+  const payMode=config.payMode||'cloud';
+  let v3Client;
+  const direct=()=>v3Client||(v3Client=require('./wechat-v3').createV3({config,fetch:fetchImpl,now}));
+  const transport=trade=>trade.transport||'cloud';
   const book=new TradeBook(store);
   const payReady=()=>settings?.payReady===true;
   const missing=()=>settings?.payReady?[]:(settings?.payMissing||[]);
   const field=(obj,...keys)=>{for(const key of keys)if(obj&&obj[key]!==undefined&&obj[key]!==null&&obj[key]!=='')return obj[key];return undefined;};
 
-  async function callPay(action,bodyObj){
+  async function callPay(action,bodyObj,mode='cloud'){
+    if(mode==='direct')return direct().call(action,bodyObj);
+    if(mode!=='cloud')throw Error('WECHAT_PAY_MODE_INVALID');
     const response=await fetchImpl('http://api.weixin.qq.com/_/pay/'+action,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(bodyObj),signal:AbortSignal.timeout(15000)});
     const text=await response.text();
     let json={};
@@ -96,7 +102,7 @@ function createWechat({settings,store,auth,fetch:fetchImpl=global.fetch,now=()=>
   async function createPayment(actor,input,req){
     if(!payReady())throw Error('REAL_PAYMENT_NOT_CONFIGURED');
     if(!actor.openid)throw Error('WECHAT_OPENID_REQUIRED');
-    const cloud=target(req);
+    const cloud=payMode==='direct'?{envId:'',service:'',ip:'127.0.0.1'}:target(req);
     const order=await orderOf(actor,input.id);
     if(order.userId!==actor.id)throw Error('FORBIDDEN');
     if(order.status==='PAID')return {order,wechat:null};
@@ -109,11 +115,11 @@ function createWechat({settings,store,auth,fetch:fetchImpl=global.fetch,now=()=>
       spbill_create_ip:cloud.ip,sub_mch_id:config.mchId,total_fee:order.total,attach:order.id,trade_type:'JSAPI',
       env_id:cloud.envId,callback_type:2,container:{service:cloud.service,path:'/wechat/pay/notify'}
     };
-    const trade=await book.reserve({outTradeNo,orderId:order.id,userId:actor.id,openid:actor.openid,amount:order.total,request,envId:cloud.envId,service:cloud.service,status:'CREATING',createdAt:now(),nextCheckAt:now()+60000});
+    const trade=await book.reserve({outTradeNo,orderId:order.id,userId:actor.id,openid:actor.openid,amount:order.total,request,envId:cloud.envId,service:cloud.service,transport:payMode,status:'CREATING',createdAt:now(),nextCheckAt:now()+60000});
     if(trade.openid!==actor.openid||trade.amount!==order.total)throw Error('PAYMENT_CONFLICT');
     if(trade.status==='CREATED'&&trade.payment)return {order,outTradeNo:trade.outTradeNo,wechat:trade.payment};
     if(trade.status!=='CREATING')throw Error('INVALID_STATE');
-    const created=await callPay('unifiedOrder',trade.request);
+    const created=await callPay('unifiedOrder',trade.request,transport(trade));
     const wechat=paymentFields(created);
     try{await book.save({...trade,prepayId:created.prepay_id,payment:wechat,status:'CREATED'});}
     catch(error){if(error.message!=='PAYMENT_REVISION_CONFLICT')throw error;const current=await book.get(trade.outTradeNo);if(current?.status!=='CREATED'||!current.payment)throw error;return {order:await orderOf(actor,input.id),outTradeNo:current.outTradeNo,wechat:current.payment};}
@@ -161,16 +167,16 @@ function createWechat({settings,store,auth,fetch:fetchImpl=global.fetch,now=()=>
     const order=await orderOf({id:trade.userId||'wx:'+trade.openid,channel:'wechat'},trade.orderId);
     if(['REFUNDING','DUPLICATE_REFUNDING'].includes(trade.status))return submitRefund(order,trade,trade.duplicate?'重复到账，自动退款':order.refund?.reason||'退款补查');
     let remote;
-    try{remote=await callPay('queryorder',{out_trade_no:trade.outTradeNo,sub_mch_id:config.mchId});}
+    try{remote=await callPay('queryorder',{out_trade_no:trade.outTradeNo,sub_mch_id:config.mchId},transport(trade));}
     catch(error){if(!['ORDERNOTEXIST','ORDER_NOT_EXIST'].includes(error.message))throw error;return;}
     const status=field(remote,'trade_state','tradeState');
     if(status==='SUCCESS')return applyPaid(trade,remote);
     if(status==='CLOSED'||status==='REVOKED')return book.save({...trade,status:'CLOSED'});
     if(['CANCELLED','EXPIRED'].includes(order.status)&&status==='NOTPAY'){
-      try{await callPay('closeorder',{out_trade_no:trade.outTradeNo,sub_mch_id:config.mchId});}
+      try{await callPay('closeorder',{out_trade_no:trade.outTradeNo,sub_mch_id:config.mchId},transport(trade));}
       catch(error){if(!['ORDERPAID','ORDERCLOSED'].includes(error.message))throw error;}
       // Payment may win the race with closing; always query after closing.
-      const checked=await callPay('queryorder',{out_trade_no:trade.outTradeNo,sub_mch_id:config.mchId});
+      const checked=await callPay('queryorder',{out_trade_no:trade.outTradeNo,sub_mch_id:config.mchId},transport(trade));
       if(field(checked,'trade_state','tradeState')==='SUCCESS')return applyPaid(trade,checked);
       if(field(checked,'trade_state','tradeState')==='CLOSED')return book.save({...trade,status:'CLOSED'});
     }
@@ -194,15 +200,15 @@ function createWechat({settings,store,auth,fetch:fetchImpl=global.fetch,now=()=>
   async function submitRefund(order,trade,reason){
     const outRefundNo=trade.outRefundNo||('R'+trade.outTradeNo.slice(1));
     const cloud={envId:trade.envId||config.cloudEnv,service:trade.service||config.cloudService||'pet-shop'};
-    if(!cloud.envId)throw Error('WECHAT_CLOUD_ENV_REQUIRED');
+    if(transport(trade)==='cloud'&&!cloud.envId)throw Error('WECHAT_CLOUD_ENV_REQUIRED');
     trade=await book.save({...trade,outTradeNo:trade.outTradeNo,outRefundNo,orderId:order.id,status:trade.duplicate?'DUPLICATE_REFUNDING':'REFUNDING',nextCheckAt:now()+60000});
     let remote;
     try{remote=await callPay('refund',{
       out_trade_no:trade.outTradeNo,out_refund_no:outRefundNo,sub_mch_id:config.mchId,total_fee:order.total,refund_fee:order.total,
       refund_desc:clip(reason,80),env_id:cloud.envId,callback_type:2,container:{service:cloud.service,path:'/wechat/refund/notify'}
-    });}catch(error){remote=await callPay('queryrefund',{out_trade_no:trade.outTradeNo,out_refund_no:outRefundNo,sub_mch_id:config.mchId}).catch(()=>{throw error;});}
+    },transport(trade));}catch(error){remote=await callPay('queryrefund',{out_trade_no:trade.outTradeNo,out_refund_no:outRefundNo,sub_mch_id:config.mchId},transport(trade)).catch(()=>{throw error;});}
     let done=refundHit(remote,outRefundNo);
-    if(!done)done=refundHit(await callPay('queryrefund',{out_trade_no:trade.outTradeNo,out_refund_no:outRefundNo,sub_mch_id:config.mchId}),outRefundNo);
+    if(!done)done=refundHit(await callPay('queryrefund',{out_trade_no:trade.outTradeNo,out_refund_no:outRefundNo,sub_mch_id:config.mchId},transport(trade)),outRefundNo);
     if(done?.refundId&&done.amount===order.total){
       const result=trade.duplicate?order:await settle('refund',{eventId:'refund:'+done.refundId,refundId:done.refundId,orderId:order.id,amount:done.amount,currency:'CNY'});
       await book.save({...trade,status:trade.duplicate?'DUPLICATE_REFUNDED':'REFUNDED',refundId:done.refundId});
@@ -236,8 +242,8 @@ function createWechat({settings,store,auth,fetch:fetchImpl=global.fetch,now=()=>
       const body=JSON.parse(await readRaw(req)||'{}');
       if(field(body,'result_code','resultCode')!=='SUCCESS'||field(body,'return_code','returnCode')!=='SUCCESS')throw Error('WECHAT_TRADE_STATE');
       const trade=await book.get(field(body,'out_trade_no','outTradeNo'));
-      if(!trade)throw Error('WECHAT_TRADE_NOT_FOUND');
-      const remote=await callPay('queryorder',{out_trade_no:trade.outTradeNo,sub_mch_id:config.mchId});
+      if(!trade||transport(trade)!=='cloud')throw Error('WECHAT_TRADE_NOT_FOUND');
+      const remote=await callPay('queryorder',{out_trade_no:trade.outTradeNo,sub_mch_id:config.mchId},transport(trade));
       if(field(remote,'trade_state','tradeState')!=='SUCCESS')throw Error('WECHAT_TRADE_STATE');
       await applyPaid(trade,remote);
       ack(res,200,0,'ok');
@@ -255,8 +261,8 @@ function createWechat({settings,store,auth,fetch:fetchImpl=global.fetch,now=()=>
       if(subMch&&subMch!==config.mchId)throw Error('WECHAT_MERCHANT_MISMATCH');
       const trade=await book.get(field(body,'out_trade_no','outTradeNo'));
       const outRefundNo=field(body,'out_refund_no','outRefundNo');
-      if(!trade||(trade.outRefundNo&&trade.outRefundNo!==outRefundNo))throw Error('WECHAT_TRADE_NOT_FOUND');
-      const remote=await callPay('queryrefund',{out_trade_no:trade.outTradeNo,sub_mch_id:config.mchId});
+      if(!trade||transport(trade)!=='cloud'||(trade.outRefundNo&&trade.outRefundNo!==outRefundNo))throw Error('WECHAT_TRADE_NOT_FOUND');
+      const remote=await callPay('queryrefund',{out_trade_no:trade.outTradeNo,sub_mch_id:config.mchId},transport(trade));
       const done=refundHit(remote,outRefundNo);
       if(!done?.refundId||done.amount!==trade.amount)throw Error('WECHAT_REFUND_STATE');
       if(!trade.duplicate)await settle('refund',{eventId:'refund:'+done.refundId,refundId:done.refundId,orderId:trade.orderId,amount:done.amount,currency:'CNY'});
@@ -267,7 +273,32 @@ function createWechat({settings,store,auth,fetch:fetchImpl=global.fetch,now=()=>
       ack(res,200,1,error.message);
     }
   }
+  async function directNotify(req,res,kind){
+    const reply=(status,code)=>{if(!res.writableEnded){res.writeHead(status,{'Content-Type':'application/json; charset=utf-8'});res.end(JSON.stringify({code,message:code}));}};
+    if(!payReady())return reply(503,'FAIL');
+    try{
+      const chunks=[];let size=0;for await(const chunk of req){size+=chunk.length;if(size>100000)throw Error('BODY_TOO_LARGE');chunks.push(Buffer.from(chunk));}
+      const notice=direct().notification(req.headers,Buffer.concat(chunks).toString('utf8'),kind);
+      const trade=await book.get(notice.out_trade_no);
+      if(!trade||transport(trade)!=='direct')throw Error('WECHAT_TRADE_NOT_FOUND');
+      if(kind==='payment'){
+        const remote=await callPay('queryorder',{out_trade_no:trade.outTradeNo,sub_mch_id:config.mchId},'direct');
+        if(remote.trade_state!=='SUCCESS')throw Error('WECHAT_TRADE_STATE');
+        await applyPaid(trade,remote);
+      }else{
+        if(!trade.outRefundNo||notice.out_refund_no!==trade.outRefundNo)throw Error('WECHAT_TRADE_NOT_FOUND');
+        const remote=await callPay('queryrefund',{out_trade_no:trade.outTradeNo,out_refund_no:trade.outRefundNo,sub_mch_id:config.mchId,total_fee:trade.amount},'direct');
+        const done=refundHit(remote,trade.outRefundNo);
+        if(!done?.refundId||done.amount!==trade.amount)throw Error('WECHAT_REFUND_STATE');
+        if(!trade.duplicate)await settle('refund',{eventId:'refund:'+done.refundId,refundId:done.refundId,orderId:trade.orderId,amount:done.amount,currency:'CNY'});
+        await book.save({...trade,status:trade.duplicate?'DUPLICATE_REFUNDED':'REFUNDED',refundId:done.refundId});
+      }
+      reply(200,'SUCCESS');
+    }catch(error){console.error('WeChat v3 notify failed:',/^[A-Z0-9_]{1,80}$/.test(error.message||'')?error.message:'VERIFY_OR_SETTLE_FAILED');reply(500,'FAIL');}
+  }
   async function handle(req,res,url){
+    if(url.pathname==='/wechat/pay/v3/notify'&&req.method==='POST'){await directNotify(req,res,'payment');return true;}
+    if(url.pathname==='/wechat/refund/v3/notify'&&req.method==='POST'){await directNotify(req,res,'refund');return true;}
     if(url.pathname==='/wechat/pay/notify'&&req.method==='POST'){await payNotify(req,res);return true;}
     if(url.pathname==='/wechat/refund/notify'&&req.method==='POST'){await refundNotify(req,res);return true;}
     return false;
