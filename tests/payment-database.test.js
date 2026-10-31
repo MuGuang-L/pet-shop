@@ -9,10 +9,12 @@ for(const engine of ['mongo','mysql'])test('真实 '+engine+'：多连接支付�
  const store=await Store.connect({database});let second;
  try{
   second=await Store.connect({database});
+  if(engine==='mysql')assert.equal(await store.hasBackgroundWork(),false);
   const reservation={orderId:'reservation-only',openid:'test-openid',amount:1,status:'CLOSED',createdAt:1};
   const reservations=await Promise.all([store.reserveTrade({...reservation,outTradeNo:'Pcandidate-one'}),second.reserveTrade({...reservation,outTradeNo:'Pcandidate-two'})]);
   assert.equal(reservations[0].outTradeNo,reservations[1].outTradeNo);assert.equal((await store.tradesByOrder(reservation.orderId)).length,1);
   const f=await fixture(store);
+  if(engine==='mysql')assert.equal(await second.hasBackgroundWork(),true);
   f.behavior.timeoutOnce=true;
   await assert.rejects(f.gateway().createPayment(f.actor,{id:f.order.id},{}),/ETIMEDOUT/);
   const results=await Promise.all([f.gateway().createPayment(f.actor,{id:f.order.id},{}),f.gateway(second).createPayment(f.actor,{id:f.order.id},{})]);
@@ -26,13 +28,20 @@ for(const engine of ['mongo','mysql'])test('真实 '+engine+'：多连接支付�
   await assert.rejects(store.saveTrade({...old,status:'CREATED'}),/PAYMENT_REVISION_CONFLICT/);
   assert.equal((await second.getTrade(old.outTradeNo)).status,'REFUNDED');
   assert.equal((await second.pendingTrades(f.now())).length,0);
+  if(engine==='mysql')assert.equal(await second.hasBackgroundWork(),false);
   // Legacy records have no version field. Keep their number, do not mint a
   // new payment, and migrate their version on the first successful write.
   const legacy={outTradeNo:'Plegacy-test',orderId:'legacy-order',openid:f.actor.openid,amount:1,status:'CREATED',createdAt:1};
   await store.upsertTrade(legacy);
+  if(engine==='mysql'){
+   assert.equal(await second.hasBackgroundWork(),true);
+   await store.upsertTrade({...legacy,nextCheckAt:Date.now()+3600000,status:'REFUNDING'});
+   assert.equal(await second.hasBackgroundWork(),true);
+  }
   const reserved=await second.reserveTrade({...legacy,outTradeNo:'Pmust-not-be-created'});assert.equal(reserved.outTradeNo,legacy.outTradeNo);
   const saved=await second.saveTrade({...reserved,status:'CLOSED'});assert.equal(saved.version,1);
   await assert.rejects(store.saveTrade({...reserved,status:'CREATED'}),/PAYMENT_REVISION_CONFLICT/);
+  if(engine==='mysql')assert.equal(await store.hasBackgroundWork(),false);
  }finally{
   if(second)await second.close();
   // Only the random, explicitly named test database created above is removed.

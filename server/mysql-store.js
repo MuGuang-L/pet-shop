@@ -30,7 +30,7 @@ class MysqlStore{
   if(!user)throw configError('MYSQL_USER_REQUIRED');
   if(!/^[A-Za-z0-9_]{1,64}$/.test(database))throw configError('MYSQL_DATABASE_NAME');
   const mysql=require('mysql2/promise');
-  const options={host,port,user,password,database,waitForConnections:true,connectionLimit:10,connectTimeout:10000,enableKeepAlive:true,charset:'utf8mb4'};
+  const options={host,port,user,password,database,waitForConnections:true,connectionLimit:10,maxIdle:2,idleTimeout:60000,connectTimeout:10000,enableKeepAlive:true,charset:'utf8mb4'};
   const open=async()=>{const pool=mysql.createPool(options);const store=new MysqlStore(pool,database);try{await store.initialize();return store;}catch(error){await store.close();throw error;}};
   try{return await open();}
   catch(error){
@@ -162,6 +162,17 @@ class MysqlStore{
  async pendingTrades(at,limit=10){
   const rows=await this.query("SELECT payload FROM wechat_trades WHERE JSON_UNQUOTE(JSON_EXTRACT(payload, '$.status')) NOT IN ('SUCCESS','CLOSED','REFUNDED','DUPLICATE_REFUNDED') AND COALESCE(JSON_EXTRACT(payload, '$.nextCheckAt'),0)<=? ORDER BY COALESCE(JSON_EXTRACT(payload, '$.nextCheckAt'),0), created_at LIMIT ?",[at,limit]);
   return rows.map(row=>parseValue(row.payload));
+ }
+ async hasBackgroundWork(){
+  // Include future nextCheckAt values and refund recovery; an empty batch of
+  // currently-due trades alone does not mean the database can be left idle.
+  const rows=await this.query(`SELECT
+    EXISTS(SELECT 1 FROM shop_state WHERE id='singleton'
+      AND JSON_CONTAINS(value, '{"status":"PENDING"}', '$.orders')) AS orders_pending,
+    EXISTS(SELECT 1 FROM wechat_trades WHERE
+      COALESCE(JSON_UNQUOTE(JSON_EXTRACT(payload, '$.status')),'')
+      NOT IN ('SUCCESS','CLOSED','REFUNDED','DUPLICATE_REFUNDED')) AS trades_pending`);
+  return Boolean(Number(rows[0].orders_pending)||Number(rows[0].trades_pending));
  }
  async tradesByOrder(orderId){
   const rows=await this.query('SELECT payload FROM wechat_trades WHERE order_id=? ORDER BY created_at DESC',[orderId]);
