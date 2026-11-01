@@ -1,4 +1,4 @@
-const config=require('./logistics-plugin.json');
+const config=require('./logistics-plugin-config');
 function available(){return config.enabled;}
 async function open(waybillToken){
  if(!config.enabled||typeof requirePlugin!=='function')throw Error('PLUGIN_UNAVAILABLE');

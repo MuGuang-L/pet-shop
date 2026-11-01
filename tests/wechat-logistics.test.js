@@ -1,6 +1,17 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict');
 const {createLogistics}=require('../server/logistics');
+test('小程序物流模块在只支持JS模块的运行时可加载',async()=>{
+ const vm=require('node:vm'),fs=require('node:fs'),path=require('node:path');
+ function load(file){
+  const module={exports:{}};
+  vm.runInNewContext(fs.readFileSync(file,'utf8'),{module,exports:module.exports,require:name=>load(path.resolve(path.dirname(file),name+'.js'))},{filename:file});
+  return module.exports;
+ }
+ const plugin=load(require.resolve('../miniprogram/services/logistics-plugin'));
+ assert.equal(plugin.available(),false);
+ await assert.rejects(plugin.open('token'),/PLUGIN_UNAVAILABLE/);
+});
 function fixture(){
  let at=100000;const requests=[],records=new Map(),actor={id:'wx:buyer',openid:'buyer',channel:'wechat'};
  const order={id:'o1',userId:actor.id,fulfillment:{type:'DELIVERY'},shipping:{carrier:'shunfeng',company:'顺丰',number:'SF12345678'},payment:{provider:'WECHAT',transactionId:'420000123'},address:{phone:'13800000000'},lines:[{name:'猫粮',image:'/assets/food.jpg'}]};
