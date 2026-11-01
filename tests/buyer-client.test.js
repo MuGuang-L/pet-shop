@@ -29,8 +29,23 @@ test('订单资金提示以实际付款渠道为准，云端真实支付不显�
   c.sample=base;let result=vm.runInNewContext('order(sample)',c);
   assert.match(result.paymentNotice,/真实资金/);assert.match(result.refundNotice,/原路退回/);assert.equal(result.refund.stageText,'待微信退款');assert.equal(result.statusText,'待微信退款');
   base.refund.stage='REFUND_FAILED';result=vm.runInNewContext('order(sample)',c);assert.equal(result.refund.stageText,'微信退款待重试');
-  base.payment={provider:'MOCK'};result=vm.runInNewContext('order(sample)',c);assert.match(result.paymentNotice,/模拟支付/);assert.match(result.refundNotice,/不涉及真实资金/);
+  base.payment={provider:'MOCK'};result=vm.runInNewContext('order(sample)',c);assert.match(result.paymentNotice,/不产生真实扣款或退款/);assert.match(result.refundNotice,/不涉及真实资金/);
   base.payment=null;base.refund=null;base.status='CANCELLED';result=vm.runInNewContext('order(sample)',c);assert.match(result.paymentNotice,/尚无已付款记录/);
-  base.status='PENDING';result=vm.runInNewContext('order(sample)',c);assert.match(result.paymentNotice,mode==='cloud'?/实际扣款/:/模拟付款/);
+  base.status='PENDING';result=vm.runInNewContext('order(sample)',c);assert.match(result.paymentNotice,mode==='cloud'?/实际扣款/:/不产生真实扣款/);
  }
+});
+
+
+test('订单详情返回保留原入口，普通弹层仅关闭；售后展开状态不跨订单泄漏',()=>{
+ let page;let backs=0;
+ const context={Page:p=>page=p,require:n=>n.includes('studio')?require('../cloudfunctions/shop/studio'):{mode:'api'},wx:{navigateBack(){backs++;}},getCurrentPages:()=>[{},{}]};
+ vm.runInNewContext(fs.readFileSync(require.resolve('../miniprogram/pages/shop/index'),'utf8'),context);
+ page.setData=function(values){Object.assign(this.data,values);};
+ const sample={id:'one',status:'COMPLETED',lines:[],total:100,shippingFee:0};
+ page.selectOrder(sample);page.toggleAfterForm();page.toggleAfterHistory();
+ assert.equal(page.data.afterFormOpen,true);assert.equal(page.data.afterHistoryOpen,true);
+ page.selectOrder({...sample,id:'two'});assert.equal(page.data.afterFormOpen,false);assert.equal(page.data.afterHistoryOpen,false);
+ page.keepOrderOpen();assert.equal(page.data.selectedOrder.id,'two');
+ page.closeOrder();assert.equal(page.data.selectedOrder,null);assert.equal(backs,0);
+ page.orderDetailEntry=true;page.selectOrder(sample);page.closeOrder();assert.equal(backs,1);
 });
