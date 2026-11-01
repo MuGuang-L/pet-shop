@@ -1,24 +1,30 @@
-# 爪爪小铺
+# 奇迹空间宠物咖啡店
 
-宠物商城模拟开发项目，分为小程序侧和服务侧。
+微信小程序商城与商家管理后台。买家在小程序浏览商品、下单、选择到店自提或商家外送、查看订单及申请售后；商家通过 Web 后台维护商品、库存、门店信息和订单。
 
-小程序侧负责商品浏览、购物车、地址、订单和售后。服务侧包含商家 Web 和 HTTP API，负责商品维护、店铺装修、库存、履约及售后处理。本机开发使用 MongoDB；微信云托管使用同环境的 MySQL，部署见 [CLOUDBASE.md](CLOUDBASE.md)。
+当前联调代码位于 `integration/full-stack`。云端使用微信云托管 Node.js 服务和 MySQL，小程序通过 `wx.cloud.callContainer` 访问服务并使用微信身份；本地开发可使用 MongoDB 和独立测试账号。支付支持云托管开放接口及 API v3 直连，实际启用方式由服务端配置决定。
 
-## 项目结构
+## 当前进度
 
-| 部分 | 目录 | 内容 |
-| --- | --- | --- |
-| 小程序侧 | `miniprogram/` | 微信小程序页面、样式和接口适配 |
-| 服务侧 | `apps/merchant-web/` | 商家 Web |
-| 服务侧 | `server/` | HTTP API、登录权限；本机 MongoDB，云托管 MySQL |
-| 服务侧 | `cloudfunctions/shop/` | 共享业务规则；当前由 Node.js 调用，不部署云函数 |
-| 公共 | `scripts/`、`tests/`、`docs/` | 开发脚本、测试和文档 |
+2026-11-01 已完成小程序代码上传，压缩后开发工具预览代码包为 761 KB。用户真机下单并取消后，开发工具从云端读回相同订单的“已取消”状态。该验证未发生付款，不代表真实支付、退款或全部上线项目通过。详细进度见 [状态](STATUS.md) 和 [上线前验收](docs/PRELAUNCH-ACCEPTANCE.md)。
 
-`preview/` 和 `tests/fixtures/legacy/` 保留历史实现及回归样本，不作为当前入口。
+## 目录
 
-## 在自己的电脑上运行
+| 目录 | 用途 |
+| --- | --- |
+| `miniprogram/` | 当前微信小程序，普通入口 `pages/shop/index`，订单中心 `pages/orders/index` |
+| `apps/merchant-web/` | 商家后台，服务路径 `/admin/` |
+| `server/` | HTTP API、身份校验、数据库和支付接入 |
+| `cloudfunctions/shop/` | Node 服务复用的业务规则；当前部署不需要发布云函数 |
+| `source-assets/` | 图片原稿 |
+| `scripts/`、`tests/` | 开发、构建和验证工具 |
+| `docs/` | 配置、接口和验收记录，索引见 [文档导航](docs/README.md) |
 
-仓库默认连接本机，不需要 NATAPP，也不需要其他运行环境的账号、数据库或上传文件。使用 [Node.js 22](https://nodejs.org/en/download) 和 Git，在准备存放项目的目录执行：
+`preview/`、`tests/fixtures/legacy/` 是历史预览与回归样本，不作为当前产品入口。
+
+## 本地开发
+
+使用 Node.js 22，在仓库根目录执行：
 
 ```sh
 git clone --branch integration/full-stack https://github.com/MuGuang-L/pet-shop.git
@@ -28,93 +34,48 @@ npm run setup
 npm run service:start
 ```
 
-私有仓库需要先接受协作邀请，并使用自己的 GitHub 身份克隆。Windows 若提示 npm.ps1 无法执行，将 `npm` 换为 `npm.cmd`。
+Windows 如遇 PowerShell 脚本限制，使用 `npm.cmd`。`setup` 仅创建缺少的配置和测试账号，保留已有文件、数据库和账号。
 
-`setup` 为本机生成连接配置、开发工具项目配置、服务管理配置和随机测试账号。重复执行会保留已有文件，不重置账号或数据。默认配置如下：
+商家后台为 `http://127.0.0.1:4173/admin/`，测试账号位于 `.local/auth/credentials.txt`。服务管理脚本首次运行会下载 MongoDB 并启动本地副本集，数据保存在 `.local/mongodb/data/`。使用 `npm run service:status` 检查，`npm run service:stop` 停止。补充配置见 [本地开发](docs/LOCAL-DEVELOPMENT.md)。
 
-| 内容 | 本机默认值 |
-| --- | --- |
-| 商家 Web | `http://127.0.0.1:4173/admin/` |
-| 小程序 API | `http://127.0.0.1:4173` |
-| MongoDB | `mongodb://127.0.0.1:27018/?replicaSet=petshop` |
-| 数据库名称 | `pet_shop_demo` |
-| 小程序连接配置 | `miniprogram/config.local.js`，不提交 Git |
-| 开发工具配置 | `project.config.json`，不提交 Git；模板使用测试 AppID |
-| 测试账号 | `.local/auth/credentials.txt`；merchant 登录商家 Web，buyer 登录小程序 |
+**小程序配置模板当前为云托管模式，setup 不会自动切成本机。** 本地联调请在不提交 Git 的 `miniprogram/config.local.js` 中设置：
 
-`service:start` 在当前终端启动数据库和 Node 服务，持续监测并恢复子进程。首次运行会下载官方 MongoDB 8.0.16 二进制，启动单节点副本集；不需要单独安装 MongoDB，也不是内存数据库。下载需要网络，数据保存在 `.local/mongodb/data/`，退出或重启后保留。默认不启动任何隧道。请等服务就绪再登录，在另一个终端检查：
-
-```sh
-npm run service:status
+```js
+module.exports = {
+  mode: 'api',
+  apiBase: 'http://127.0.0.1:4173'
+};
 ```
 
-database 和 backend 均为 healthy 后，打开商家 Web；`http://127.0.0.1:4173/health` 也应返回 `ok: true` 和 `database: mongodb`。首次连接空库时，服务自动创建集合、索引和模拟商品；以后启动不会覆盖已有商品、订单或库存。每台电脑的数据各自独立，`git pull` 不同步数据库。
+此模式使用本地 buyer 测试账号。手机不能通过 `127.0.0.1` 连接电脑；真机联调使用已配置的云托管，或可访问且符合微信域名要求的 HTTPS 服务。
 
-停止使用 `npm run service:stop`，再次启动仍用 `npm run service:start`。不要同时再运行 `npm start` 或 `npm run db:start`；端口已占用时脚本会拒绝启动，不会关闭其他进程。现有环境执行 setup 会保留原配置（包括已设置的隧道），不会自动改成本地模式。
+## 小程序编译与上传
 
-手动安装 MongoDB、下载失败处理、环境变量和独立启动方式见 [本地环境配置](docs/LOCAL-DEVELOPMENT.md)。
+1. 执行 `npm ci --prefix miniprogram`，在微信开发者工具导入仓库根目录。
+2. 核对本机 `project.config.json` 的 AppID，以及 `miniprogram/config.local.js` 的运行模式和环境。云端配置见 [云托管部署](CLOUDBASE.md)。
+3. 在开发工具执行“工具 → 构建 npm”，再编译。依赖更新后重新构建，生成的 `miniprogram_npm` 不提交 Git。
+4. 预览并核对页面、接口和包体，再上传。普通体验入口为 `pages/shop/index`；审核表单中不带参数的订单中心 path 为 `pages/orders/index`。按支付单号打开订单的配置另见 [支付文档](docs/WECHAT-PAY-DIRECT.md)。
 
-## 小程序侧开发
+图片原稿更新后执行 `node scripts/optimize-miniapp-assets.js`，生成压缩 JPEG：横幅最大宽度 960px，其余 640px，保持比例、不放大。开发工具配置保持 `setting.minified: true`，按 `project.example.json` 排除原始 `node_modules` 和包管理文件，保留构建后的 `miniprogram_npm`。已有本机配置不会被 setup 覆盖，需要自行同步打包选项。
 
-先执行 `npm ci --prefix miniprogram`，再在微信开发者工具中选择「工具 → 构建 npm」，然后编译。订单中心与个人中心使用 TDesign 小程序组件；每次更新依赖后需重新构建 npm，生成的 `miniprogram_npm` 不提交仓库。组件及参考项目说明见 [界面参考](docs/third-party/README.md)。
+## 更新与发布
 
-小程序使用压缩后的发布图片，高清原稿保留在 `source-assets/`。更新原稿后执行 `node scripts/optimize-miniapp-assets.js` 重新生成：横幅最大宽度 960px，其余图片 640px，保持比例、不放大。上传前保持 `project.config.json` 的 `setting.minified: true`；`packOptions.ignore` 按 `project.example.json` 排除原始 `node_modules` 和包管理文件，但保留构建后的 `miniprogram_npm`。已有项目的本机配置不会被 setup 自动覆盖，需要同步这些打包选项。最终包体以开发工具预览/上传结果为准。
+| 修改内容 | 生效方式 |
+| --- | --- |
+| README、说明文档 | 提交并推送 Git 即可；不需要重新上传小程序或发布云托管 |
+| 小程序页面、组件、配置、打包图片 | 重新编译、上传并更新相应小程序版本 |
+| 服务端、共享业务规则、商家 Web、服务端依赖 | 重新构建并发布云托管服务 |
+| 云托管环境变量 | 按云托管版本流程重新发布 |
 
-完成 `npm ci` 和 `npm run setup` 后，用微信开发者工具导入仓库根目录，选择有权限使用的 AppID 或工具支持的测试模式。AppID 保存在本机 `project.config.json`，不用改公共模板。
+Git 同步源码，不同步数据库、上传图片或正在运行的服务。云托管部署与数据持久化限制见 [部署说明](CLOUDBASE.md)；真实支付配置和验收见 [API v3 直连](docs/WECHAT-PAY-DIRECT.md)。
 
-在同一台电脑的模拟器中，`miniprogram/config.local.js` 默认地址即可使用。开发工具进行本地 HTTP 联调时，需在本地设置中关闭合法域名校验；这只适用于开发调试，不代表真机或上线域名已配置好。使用本机生成的 buyer 账号登录。首次打开尚未初始化的 checkout 会缺少 config.local 模块，运行 setup 后重新编译即可。
-
-只开发小程序侧、连接共享服务时，不需要启动本地 MongoDB。把本机配置里的 `apiBase` 改为服务侧提供的 HTTPS 根地址（不加 `/api`），使用该服务分配的测试账号。仓库不预设任何人的隧道地址。
-
-真机的 `127.0.0.1` 指手机自身，不能访问电脑上的服务。真机或跨电脑联调需要另行配置可访问的 HTTPS 服务地址及微信域名规则；隧道是可选接入方式，只映射 HTTP 服务，不开放 MongoDB。
-
-## 登录说明
-
-本机保留买家和商家两种测试身份：买家订单、地址按账号隔离，商家才能维护商品、发货、退款和调整库存。测试账号由各自本机生成，密码不写进仓库。
-
-云托管里的小程序使用微信身份，不再输入买家账号。商家 Web 继续用账号密码登录。
-
-## 功能范围
-
-当前范围以 [必要功能与开发边界](docs/SCOPE.md) 为准：只做购买、经营和异常处理必需的能力。不做吉祥物和品牌故事，暂不做优惠券、促销、会员价等营销玩法。低 QPS 仍需保证网络失败、重复请求与数据库恢复时的数据正确性，见 [网络可靠性](docs/NETWORK-RELIABILITY.md)。
-
-- 商品分类、详情、规格、购物车、地址和订单。
-- 到店自提：备货、提货码核销；商家外送：登记单号或配送说明、确认收货。
-- 商品图片上传、备选图库、商品模板、上下架和店铺内容编辑。
-- 整单售后、审核、撤回、退货登记、实收及可售数量验收、退货入库、模拟退款重试。
-- 服务侧权限校验、用户订单隔离、库存事务、幂等操作及超时取消。
-
-云托管的环境变量、MySQL 和支付开关见 [CLOUDBASE.md](CLOUDBASE.md)。`miniprogram/config.local.js` 填写环境 ID，服务名默认 `pet-shop`。支付使用开放接口统一下单，回调进入容器，不需要商户证书和公网回调域名。本机未设置 MySQL 时，小程序继续用买家测试账号和模拟付款。部分退款、换货和真机支付验收还没完成。
-
-## 检查与测试
+## 检查与协作
 
 ```sh
 npm run check
 npm test
 ```
 
-普通测试默认跳过 MongoDB 集成测试。启动数据库后执行 `npm run test:mongo` 可单独验证持久化；完整测试使用环境变量 `PET_MONGO_TEST=1`。PowerShell 示例：
+默认测试会跳过需要真实数据库的集成项。启用 MongoDB 使用 `PET_MONGO_TEST=1`；启用 MySQL 使用 `PET_MYSQL_TEST=1` 并配置独立测试数据库连接。不要将测试指向经营数据库。
 
-```powershell
-$env:PET_MONGO_TEST='1'
-npm.cmd test
-```
-
-## 协作与文档
-
-- [开发协作](CONTRIBUTING.md)
-- [联调配置](docs/COLLABORATION.md)
-- [三方联调分支与验收](docs/FULL-STACK-INTEGRATION.md)
-- [小程序侧 API](docs/BUYER-API.md)
-- [库存入库与盘点](docs/INVENTORY.md)
-- [缺货、外送失败与自提延期](docs/FULFILLMENT-ISSUES.md)
-- [备份与恢复](docs/BACKUP-RECOVERY.md)
-- [数据库事务与历史数据增长](docs/DATABASE-SCALE.md)
-- [服务启动与恢复](docs/RUNTIME-RECOVERY.md)
-- [上线前验收清单](docs/PRELAUNCH-ACCEPTANCE.md)
-- [上游兼容性](UPSTREAM-COMPATIBILITY.md)
-- [第三方说明](THIRD_PARTY_NOTICES.md)
-
-私有仓库内的协作者可读取全部源码，目录分工不构成访问隔离。数据库、账号、上传图片、隧道令牌、备份、个人配置及原始调试截图和日志由 `.gitignore` 排除。
-
-历史验收文档记录当时版本，当前入口和启动方式以本 README 为准。原始验收材料仅保存在本机，不随仓库发布。
+开发规范见 [CONTRIBUTING.md](CONTRIBUTING.md)，接口见 [买家 API](docs/BUYER-API.md)。账号、密钥、个人配置、数据库和调试材料不得提交。第三方组件与图片来源见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) 和 [DESIGN-SOURCES.md](DESIGN-SOURCES.md)。
