@@ -403,3 +403,8 @@ test('真实付款售后明确提示资金且退货地址不预填模拟资料',
  const fields=f.run('returnAddressFields(currentOrder)');assert.match(fields,/实际接收退货/);assert.doesNotMatch(fields,/13800000000|模拟省|模拟退货收件人/);
  f.run("currentOrder.payment.provider='MOCK'");assert.match(f.run('renderAftersales(currentOrder)'),/完成退款记录/);assert.doesNotMatch(f.run('returnAddressFields(currentOrder)'),/13800000000|模拟退货收件人/);
 });
+
+test('订单表格转义商品内容，关闭订单显示中性状态且保留详情入口',()=>{
+ const f=fixture();const order=f.buyer('createOrder',{key:'table-closed',fulfillment:'PICKUP',contact:{name:'模拟',phone:'13800000000'},lines:[{productId:'toy',skuId:'toy-1',qty:1}]});f.buyer('cancel',{id:order.id});const closed=f.buyer('order',{id:order.id});closed.lines[0].name='<img src=x onerror=alert(1)>';
+ const html=f.run(`renderOrders(${JSON.stringify([closed])})`);assert.match(html,/merchant-order-table/);assert.match(html,/&lt;img src=x onerror=alert\(1\)&gt;/);assert.doesNotMatch(html,/<img src=x/);assert.match(html,/badge neutral/);assert.match(html,/查看详情/);assert.doesNotMatch(html,/安排外送<\/button>/);
+});
