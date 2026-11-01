@@ -3,7 +3,12 @@ const orderDisplay=require('../../services/order-display');
 const statusText={PENDING:'待付款',PAID:'备货中',SHIPPED:'配送中',COMPLETED:'已完成',CANCELLED:'已取消',EXPIRED:'已超时',REFUND_REQUESTED:'售后审核中',REFUNDING:'退款处理中',REFUNDED:'已退款'};
 const display=o=>({...o,...orderDisplay.card(o),statusText:orderDisplay.card(o).statusText||statusText[o.status]||o.status,totalText:(o.total/100).toFixed(2),lines:o.lines.map(line=>({...line,unitText:(line.price/100).toFixed(2),displayImage:line.image||'/assets/empty-v2.jpg'}))});
 Page({
- data:{orders:[],status:'ALL',filters:[{id:'ALL',name:'全部'},{id:'PENDING',name:'待付款'},{id:'PAID',name:'备货中'},{id:'SHIPPED',name:'配送中'},{id:'COMPLETED',name:'已完成'},{id:'AFTERSALE',name:'售后'}],page:0,pages:0,total:0,busy:false,error:'',loginRequired:false},
+ data:{rootEntry:false,orders:[],query:'',fulfillment:'ALL',status:'ALL',filters:[{id:'ALL',name:'全部'},{id:'PENDING',name:'待付款'},{id:'PAID',name:'备货中'},{id:'SHIPPED',name:'配送中'},{id:'COMPLETED',name:'已完成'},{id:'AFTERSALE',name:'售后'}],page:0,pages:0,total:0,busy:false,error:'',loginRequired:false},
+ onLoad(options={}){this.setData({rootEntry:typeof getCurrentPages!=='function'||getCurrentPages().length<2,status:this.data.filters.some(f=>f.id===options.status)?options.status:'ALL',fulfillment:['PICKUP','DELIVERY'].includes(options.fulfillment)?options.fulfillment:'ALL'});},
+ queryInput(e){this.setData({query:e.detail.value});},
+ search(){return this.load();},
+ clearScope(){this.setData({fulfillment:'ALL'});return this.load();},
+ onReachBottom(){return this.more();},
  onShow(){return this.load();},
  onPullDownRefresh(){return this.load().finally(()=>wx.stopPullDownRefresh());},
  async load(page=1,append=false){
@@ -11,7 +16,7 @@ Page({
   if(!api.hasSession()){this.setData({orders:[],loginRequired:true,error:''});return;}
   this.setData({busy:true,error:'',loginRequired:false});
   try{
-   const result=await api.call('ordersPage',{page,pageSize:10,status:this.data.status,fulfillment:'ALL',q:''});
+   const result=await api.call('ordersPage',{page,pageSize:10,status:this.data.status,fulfillment:this.data.fulfillment,q:this.data.query.trim()});
    const orders=result.items.map(display);
    this.setData({orders:append?this.data.orders.concat(orders):orders,page:result.page,pages:result.pages,total:result.total});
   }catch(e){
@@ -21,7 +26,7 @@ Page({
  },
  retry(){return this.load();},
  filter(e){
-  const status=e.currentTarget.dataset.status;
+  const status=e.detail?.value||e.currentTarget?.dataset.status;
   if(this.data.busy||!this.data.filters.some(f=>f.id===status)||status===this.data.status)return;
   this.setData({status,orders:[],page:0,pages:0,total:0});return this.load();
  },

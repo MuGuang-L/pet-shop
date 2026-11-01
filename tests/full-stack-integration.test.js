@@ -43,7 +43,7 @@ test('三方联调：下单丢响应后切换买家，恢复原账号只确认�
  assert.notEqual(f.api.checkoutScope(),scopeA);assert.ok(f.storage[scopeA]);assert.equal(p.data.selectedOrder,null);assert.equal(p.data.orders.length,0);assert.equal(p.data.addressEditing,false);assert.equal(Object.keys(p.data.addressForm).length,0);assert.equal(Object.keys(p.data.afterForm).length,0);assert.equal(p.data.pickupContact.name,'');assert.equal(p.data.pickupContact.phone,'');assert.equal(f.calls.filter(c=>c.action==='createOrder').length,1);
  await assert.rejects(f.api.call('order',{id:original.id}),e=>e.code==='FORBIDDEN');assert.equal((await f.api.call('ordersPage')).total,0);
  p.logout();await idle(p);assert.equal(f.api.hasSession(),false);assert.equal(p.data.loginRequired,true);assert.ok(f.storage[scopeA]);
- p.setData({loginForm:{username:'buyer',password:'integration-password'}});p.login();await idle(p);assert.equal(p.data.selectedOrder.id,original.id);assert.equal(f.storage[scopeA],null);
+ p.setData({loginForm:{username:'buyer',password:'integration-password'}});p.login();await idle(p);assert.equal(p.data.selectedOrder,null);assert.equal(p.data.tab,'catalog');assert.equal((await f.api.call('ordersPage')).items[0].id,original.id);assert.equal(f.storage[scopeA],null);
  const creates=f.calls.filter(c=>c.action==='createOrder');assert.equal(creates.length,2);assert.equal(creates[0].input.key,creates[1].input.key);const after=await f.store.snapshot();assert.equal(after.orders.length,1);assert.equal(after.products.find(x=>x.id==='toy').skus[0].stock,29);assert.equal(after.orders[0].address.name,'账号甲提货人');
 }));
 

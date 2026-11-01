@@ -48,3 +48,8 @@ page{background:#f6f6f6;color:#222;line-height:1.5}.shell{padding-left:28rpx;pad
 .orders-toolbar{display:flex;align-items:center;justify-content:space-between;gap:16rpx;padding:18rpx 0}.orders-toolbar .heading{margin:0;font-size:32rpx}.orders-toolbar .orders-back{margin:0}.orders-toolbar .text-link{margin:0;font-size:24rpx}.brand-logo-frame{mix-blend-mode:multiply}.account-heading{padding-top:28rpx}.order-search-bar{margin-bottom:20rpx}.empty{font-size:26rpx}.empty button{background:#a9420e;color:white;border-radius:12rpx}
 
 .request-status{top:auto;bottom:calc(145rpx + env(safe-area-inset-bottom));left:50%;right:auto;transform:translateX(-50%);width:max-content;max-width:80%;border-radius:12rpx;background:#333e;color:#fff;padding:12rpx 22rpx}
+
+/* TDesign retail tokens with merchant brand color. */
+page{--td-brand-color:#c24e13;--td-brand-color-active:#a43d0b;--td-brand-color-light:#fff2e9;--td-text-color-primary:#242424;--td-text-color-secondary:#777;--td-bg-color-page:#f5f5f5;--td-bg-color-container:#fff;--td-radius-default:12rpx;--td-button-border-radius:40rpx;}
+
+.account-service-list{margin:24rpx -32rpx}.account-orders{border:0;border-radius:16rpx}.service-pair>button{border-radius:16rpx;background:#fff}.order-quick .quick-icon{background:transparent}.account-heading{padding-bottom:16rpx}.center-tabs{--td-tab-item-tag-height:88rpx;}

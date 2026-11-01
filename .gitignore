@@ -19,3 +19,6 @@ miniprogram/config.local.js
 # Local verification captures may contain workstation paths or account UI.
 /evidence/
 /AI-HANDOFF-*.md
+
+# Built by WeChat DevTools after npm ci --prefix miniprogram
+miniprogram/miniprogram_npm/

@@ -21,7 +21,7 @@ Page({
  toggleDataNotice(){this.setData({dataNoticeOpen:!this.data.dataNoticeOpen});},
  navigate(values){this.setData(values,()=>wx.pageScrollTo({scrollTop:0,duration:0}));},
  onLoad(options={}){if(options.tab==='account')this.setData({tab:'account'});this.orderDetailEntry=!!options.order_id;this.orderEntrySection=options.section;this.pendingOrderTrade=Object.prototype.hasOwnProperty.call(options,'out_trade_no')?options.out_trade_no:null;this.pendingOrderId=Object.prototype.hasOwnProperty.call(options,'order_id')?options.order_id:null;this.startCountdown();if(api.getSupport)this.setData({support:api.getSupport()});this.setData({cart:wx.getStorageSync('pet-cart')||[]});if(api.hasSession())this.run(async()=>{await this.refresh();if(!this.data.loginRequired&&!this.data.loadError){if(!await this.openLinkedOrder())await this.recoverCheckout();}});else this.setData({loginRequired:true});},
- onShow(){const app=typeof getApp==='function'?getApp():null;const entry=app?.globalData?.orderEntry;if(entry){this.pendingOrderTrade=entry.outTradeNo;this.pendingOrderId=null;app.globalData.orderEntry=null;}if(api.hasSession())this.run(()=>this.refreshView());this.startCountdown();},
+ onShow(){const app=typeof getApp==='function'?getApp():null;const entry=app?.globalData?.orderEntry;if(app?.globalData?.homeEntry){app.globalData.homeEntry=false;this.pendingOrderTrade=null;this.pendingOrderId=null;this.orderDetailEntry=false;this.navigate({tab:'catalog',selectedOrder:null,detail:null,supportVisible:false});}if(entry){this.pendingOrderTrade=entry.outTradeNo;this.pendingOrderId=null;app.globalData.orderEntry=null;}if(api.hasSession())this.run(()=>this.refreshView());this.startCountdown();},
  onHide(){this.stopCountdown();},
  onUnload(){this.stopCountdown();},
  stopCountdown(){if(this.countdownTimer){clearInterval(this.countdownTimer);this.countdownTimer=null;}},
@@ -54,7 +54,7 @@ Page({
  category(e){this.setData({category:e.currentTarget.dataset.value});this.filter();},
  goPet(e){this.navigate({tab:'category',pet:e.currentTarget.dataset.value,category:'全部',search:''});this.filter();},
  browseCategory(e){this.navigate({tab:'category',pet:'全部',search:'',category:e.currentTarget.dataset.value});this.filter();},
- tab(e){if(!['catalog','category','cart','account','orders','addresses'].includes(e.currentTarget.dataset.tab))return;this.navigate({tab:e.currentTarget.dataset.tab,detail:null,selectedOrder:null,quickLines:[],checkoutSource:'cart'});this.run(async()=>{await this.refresh();if(this.data.tab==='orders')await this.loadOrderPage();});},
+ tab(e){if(e.currentTarget.dataset.tab==='orders')return wx.navigateTo({url:'/pages/orders/index'});if(!['catalog','category','cart','account','orders','addresses'].includes(e.currentTarget.dataset.tab))return;this.navigate({tab:e.currentTarget.dataset.tab,detail:null,selectedOrder:null,quickLines:[],checkoutSource:'cart'});this.run(async()=>{await this.refresh();if(this.data.tab==='orders')await this.loadOrderPage();});},
  detail(e){const p=this.data.products.find(p=>p.id===e.currentTarget.dataset.id);this.setData({detail:p,skuIndex:0,detailQty:1});},
  spec(e){this.setData({skuIndex:Number(e.detail.value)});},
  keepOrderOpen(){},
@@ -70,7 +70,7 @@ Page({
  backCheckout(){const target=this.data.checkoutSource==='quick'?(this.quickReturn||'category'):'cart';this.navigate({tab:target,quickLines:[],checkoutSource:'cart'});this.checkoutKey=null;this.cartTotal();},
  toggleLine(e){const i=Number(e.currentTarget.dataset.i);this.setData({['cart['+i+'].selected']:this.data.cart[i].selected===false});this.checkoutKey=null;this.cartTotal();},
  toggleAll(){const selected=!this.data.allSelected;this.setData({cart:this.data.cart.map(l=>({...l,selected}))});this.checkoutKey=null;this.cartTotal();},
- orderFilter(e){this.run(async()=>{const status=e.currentTarget.dataset.status;this.navigate({tab:'orders',fulfillmentFilter:'ALL',orderStatus:status,orderStatusIndex:this.data.orderStatusOptions.findIndex(x=>x.id===status),orderQuery:'',orderPageNumber:1});await this.loadOrderPage();});},
+ orderFilter(e){if(this.data.tab==='account')return wx.navigateTo({url:'/pages/orders/index?status='+encodeURIComponent(e.currentTarget.dataset.status)});this.run(async()=>{const status=e.currentTarget.dataset.status;this.navigate({tab:'orders',fulfillmentFilter:'ALL',orderStatus:status,orderStatusIndex:this.data.orderStatusOptions.findIndex(x=>x.id===status),orderQuery:'',orderPageNumber:1});await this.loadOrderPage();});},
  orderQueryField(e){this.setData({orderQuery:e.detail.value});},
  orderStatusField(e){const i=Number(e.detail.value);this.setData({orderStatusIndex:i,orderStatus:this.data.orderStatusOptions[i].id});},
  searchOrders(){this.run(async()=>{this.setData({orderPageNumber:1});await this.loadOrderPage();});},
@@ -88,7 +88,7 @@ Page({
  pickupField(e){this.setData({['pickupContact.'+e.currentTarget.dataset.key]:e.detail.value});this.checkoutKey=null;},
  redeemField(e){this.setData({redeemCode:e.detail.value});},
  fulfillmentFilter(e){this.run(async()=>{this.setData({fulfillmentFilter:e.currentTarget.dataset.value,orderPageNumber:1});await this.loadOrderPage();});},
- fulfillmentOrders(e){this.run(async()=>{this.navigate({tab:'orders',fulfillmentFilter:e.currentTarget.dataset.value,orderStatus:'ALL',orderStatusIndex:0,orderPageNumber:1,orderQuery:''});await this.loadOrderPage();});},
+ fulfillmentOrders(e){return wx.navigateTo({url:'/pages/orders/index?fulfillment='+encodeURIComponent(e.currentTarget.dataset.value)});},
  field(e){this.setData({['addressForm.'+e.currentTarget.dataset.key]:e.detail.value});},
  editAddress(e){this.setData({addressEditing:true,addressForm:{...this.data.addresses[Number(e.currentTarget.dataset.i)]}});},
  saveAddress(){this.run(async()=>{
@@ -124,9 +124,10 @@ Page({
   checkout.write(scope,{source,input:{...input,key:this.checkoutKey,settingsRevision:q.settingsRevision,expectedTotal:q.total}});
   await this.finishPendingCheckout(scope);
  });},
- async recoverCheckout(){const scope=api.checkoutScope();if(checkout.read(scope))await this.finishPendingCheckout(scope);},
- async finishPendingCheckout(scope){
+ async recoverCheckout(){const scope=api.checkoutScope();if(checkout.read(scope))await this.finishPendingCheckout(scope,false);},
+ async finishPendingCheckout(scope,open=true){
   const completed=await checkout.submit(scope,api.call,this.data.cart);
+  if(!open){this.setData({cart:completed.cart});this.cartTotal();wx.showToast({title:'已恢复订单，可在我的订单查看',icon:'none'});return;}
   this.checkoutKey=null;this.expirySyncId=null;this.navigate({cart:completed.cart,quickLines:[],checkoutSource:'cart',tab:'orders',selectedOrder:order(completed.order),tracking:null,afterForm:{type:'REFUND_ONLY',reason:''},orderQuery:'',orderStatus:'ALL',orderStatusIndex:0,orderPageNumber:1});
   this.cartTotal();await this.loadOrderPage();
  },

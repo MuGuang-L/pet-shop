@@ -21,7 +21,7 @@
 仓库默认连接本机，不需要 NATAPP，也不需要其他运行环境的账号、数据库或上传文件。使用 [Node.js 22](https://nodejs.org/en/download) 和 Git，在准备存放项目的目录执行：
 
 ```sh
-git clone --branch feature-yyn https://github.com/ShinnJinn/pet-shop.git
+git clone --branch integration/full-stack https://github.com/MuGuang-L/pet-shop.git
 cd pet-shop
 npm ci
 npm run setup
@@ -55,6 +55,8 @@ database 和 backend 均为 healthy 后，打开商家 Web；`http://127.0.0.1:4
 手动安装 MongoDB、下载失败处理、环境变量和独立启动方式见 [本地环境配置](docs/LOCAL-DEVELOPMENT.md)。
 
 ## 小程序侧开发
+
+先执行 `npm ci --prefix miniprogram`，再在微信开发者工具中选择「工具 → 构建 npm」，然后编译。订单中心与个人中心使用 TDesign 小程序组件；每次更新依赖后需重新构建 npm，生成的 `miniprogram_npm` 不提交仓库。组件及参考项目说明见 [界面参考](docs/third-party/README.md)。
 
 完成 `npm ci` 和 `npm run setup` 后，用微信开发者工具导入仓库根目录，选择有权限使用的 AppID 或工具支持的测试模式。AppID 保存在本机 `project.config.json`，不用改公共模板。
 

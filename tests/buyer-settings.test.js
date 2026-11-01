@@ -29,7 +29,7 @@ test('创建成功但响应丢失，重开页面自动找回原订单，只扣�
  f.drop();f.page.checkout();await idle(f.page);const original=f.state.orders[0].id;
  f.restart();f.page.onLoad();await idle(f.page);
  assert.equal(f.state.orders.length,1);assert.equal(f.state.products[1].skus[0].stock,29);
- assert.equal(f.page.data.selectedOrder.id,original);assert.equal(f.page.data.cart.length,0);
+ assert.equal(f.state.orders[0].id,original);assert.ok(f.page.data.selectedOrder==null);assert.equal(f.page.data.tab,'catalog');assert.equal(f.page.data.cart.length,0);
  const calls=f.calls.filter(c=>c.action==='createOrder');assert.equal(calls[0].input.key,calls[1].input.key);
  assert.equal(f.confirms.length,1);assert.equal(f.storage['checkout-test'],null);
 });
@@ -39,7 +39,7 @@ test('立即购买最后一件响应丢失，重新打开时不因库存不足�
  const f=fixture();await f.page.refresh();f.page.setData({deliveryMode:'PICKUP',pickupContact:{name:'模拟',phone:'13800000000'},cart:[{productId:'food',skuId:'food-1',qty:2,price:5900}]});f.page.cartTotal();
  f.page.detail({currentTarget:{dataset:{id:'toy'}}});f.page.setData({detailQty:30});f.page.buy();f.drop();f.page.checkout();await idle(f.page);
  assert.equal(f.state.products[1].skus[0].stock,0);f.restart().onLoad();await idle(f.page);
- assert.equal(f.state.orders.length,1);assert.equal(f.page.data.selectedOrder.lines[0].qty,30);assert.equal(f.page.data.cart[0].productId,'food');assert.equal(f.page.data.cart[0].qty,2);
+ assert.equal(f.state.orders.length,1);assert.equal(f.state.orders[0].lines[0].qty,30);assert.ok(f.page.data.selectedOrder==null);assert.equal(f.page.data.tab,'catalog');assert.equal(f.page.data.cart[0].productId,'food');assert.equal(f.page.data.cart[0].qty,2);
 });
 
 test('只按勾选商品核算免外送费门槛，商家关闭外送后切换到自提',async()=>{

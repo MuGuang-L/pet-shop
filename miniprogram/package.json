@@ -1,0 +1,8 @@
+{
+  "name": "pet-shop-miniapp",
+  "private": true,
+  "dependencies": {
+    "tdesign-miniprogram": "1.9.5",
+    "tslib": "2.8.1"
+  }
+}
