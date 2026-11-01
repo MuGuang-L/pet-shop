@@ -1,0 +1,21 @@
+<view class="order-center">
+ <view class="center-heading">我的订单</view>
+ <view class="center-intro">查看购买记录、配送进度和售后状态</view>
+ <scroll-view class="order-filters" scroll-x>
+  <view class="filter-row"><button wx:for="{{filters}}" wx:key="id" class="filter {{status === item.id ? 'active' : ''}}" data-status="{{item.id}}" bindtap="filter" disabled="{{busy}}">{{item.name}}</button></view>
+ </scroll-view>
+ <view wx:if="{{error}}" class="center-message" role="alert"><view>{{error}}</view><button bindtap="retry" disabled="{{busy}}">重新加载</button></view>
+ <view wx:elif="{{loginRequired}}" class="center-message"><view>请先进入店铺登录，再查看本人订单。</view><button bindtap="shop">进入店铺</button></view>
+ <view wx:elif="{{!busy && !orders.length}}" class="center-message"><view>暂无{{status === 'ALL' ? '' : '此状态的'}}订单</view><button bindtap="shop">去逛逛</button></view>
+ <view class="order-card" wx:for="{{orders}}" wx:key="id">
+  <view class="card-meta"><text class="order-id">{{item.id}}</text><text class="order-status">{{item.statusText}}</text></view>
+  <view class="order-line" wx:for="{{item.lines}}" wx:for-item="line" wx:key="skuId">
+   <image class="line-image" src="{{line.image}}" mode="aspectFill"/>
+   <view class="line-copy"><view class="line-name">{{line.name}}</view><view class="line-spec">{{line.spec}} · {{line.qty}} 件</view><view class="line-price">¥{{line.priceText}}</view></view>
+  </view>
+  <view class="card-bottom"><text>订单金额 <text class="order-total">¥{{item.totalText}}</text></text><button data-id="{{item.id}}" bindtap="openOrder">查看详情</button></view>
+ </view>
+ <view wx:if="{{busy}}" class="center-loading">正在读取订单…</view>
+ <button wx:if="{{!loginRequired && pages > page}}" class="more-orders" bindtap="more" disabled="{{busy}}">加载更多订单</button>
+ <button wx:if="{{orders.length}}" class="back-shop" bindtap="shop">继续逛店</button>
+</view>

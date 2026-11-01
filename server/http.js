@@ -38,7 +38,7 @@ function createServer(store,{auth=new Auth(),publicOrigin=process.env.PUBLIC_ORI
  if(!cloud&&!req.headers.authorization&&(!origin||!allowed.includes(origin)))return send(403,{ok:false,error:'ORIGIN_REQUIRED'});
  if(url==='/upload'){if(!actor.merchant)throw Error('FORBIDDEN');return send(200,{ok:true,path:await uploads.save({...body,role:'merchant'},{directory:uploadsDirectory})});}
  const mock=actor.channel!=='wechat';
- if(body.action==='orderByTradeNo')return send(200,{ok:true,data:await gateway.orderByTradeNo(actor,body.input||{})});
+ if(body.action==='orderByTradeNo'||body.action==='orderByTrade')return send(200,{ok:true,data:await gateway.orderByTradeNo(actor,body.input||{})});
  if(body.action==='payment'&&gateway.payReady())return send(200,{ok:true,data:await gateway.createPayment(actor,body.input||{},req)});
  if(body.action==='paymentSync'){if(!gateway.payReady())throw Error('REAL_PAYMENT_NOT_CONFIGURED');return send(200,{ok:true,data:await gateway.syncPayment(actor,body.input||{},req)});}
  if(actor.merchant&&['mockRefund','refundFail'].includes(body.action)){const preview=await store.execute(actor,'order',body.input||{},{mock:true});if(preview.payment?.provider==='WECHAT'){if(!gateway.payReady())throw Error('REAL_PAYMENT_NOT_CONFIGURED');if(body.action==='refundFail')throw Error('WECHAT_REFUND_IS_REAL');return send(200,{ok:true,data:await gateway.refund(actor,body.input||{},req)});}}

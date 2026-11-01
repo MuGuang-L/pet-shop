@@ -1,6 +1,7 @@
 {
   "pages": [
-    "pages/shop/index"
+    "pages/shop/index",
+    "pages/orders/index"
   ],
   "window": {
     "navigationBarTitleText": "奇迹空间宠物咖啡店",
