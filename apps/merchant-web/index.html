@@ -32,6 +32,8 @@
   </aside>
   <main class="admin-main">
     <header class="admin-header"><div><h1 id="section-title">订单</h1><p id="section-note"></p></div><div class="operator-controls"><span id="operator"></span><button onclick="showSimulationNotes()">使用说明</button><button onclick="logout()">退出登录</button></div></header>
+    <div id="order-alert-bar" class="order-alert-bar" hidden><span id="order-alert-status" role="status">来单提醒连接中…</span><button id="order-alert-count" onclick="MerchantAlerts.list()">待备货 0 单</button><button id="order-alert-sound" onclick="MerchantAlerts.enableSound()">开启提示音</button></div>
+    <aside id="order-alert-toast" class="order-alert-toast" hidden aria-live="polite" aria-atomic="true"><button class="alert-dismiss" aria-label="收起来单提醒" onclick="MerchantAlerts.dismiss()">×</button><strong id="order-alert-title"></strong><p id="order-alert-detail"></p><button id="order-alert-open" class="primary" onclick="MerchantAlerts.open()">查看订单</button></aside>
     <div id="error" role="alert"></div><div id="notice" class="save-notice" role="status" hidden></div>
     <section id="app" aria-busy="false"></section>
   </main>
@@ -42,6 +44,6 @@
   <p id="discard-description">这次编辑的内容尚未保存。继续编辑可以保留当前填写的内容。</p>
   <div class="discard-actions"><button id="discard-cancel" autofocus onclick="resolveDiscard(false)">继续编辑</button><button id="discard-confirm" class="primary" onclick="resolveDiscard(true)">放弃修改</button></div>
 </dialog>
-<script src="/studio.js"></script><script src="/admin/app.js"></script><script src="/admin/settings.js"></script>
+<script src="/studio.js"></script><script src="/admin/alerts.js"></script><script src="/admin/app.js"></script><script src="/admin/settings.js"></script>
 </body>
 </html>

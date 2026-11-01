@@ -38,7 +38,7 @@ async function request(url,input={}){
   }
 }
 async function api(action,input={}){return request('/api',{action,input});}
-function loginScreen(){viewRevision++;modalDirty=false;modalKind='';discardAction=null;$('discard-dialog').close();$('workspace').hidden=true;$('login').hidden=false;$('modal').close();}
+function loginScreen(){window.MerchantAlerts?.stop();viewRevision++;modalDirty=false;modalKind='';discardAction=null;$('discard-dialog').close();$('workspace').hidden=true;$('login').hidden=false;$('modal').close();}
 async function login(e){e.preventDefault();const button=$('login-button');button.disabled=true;try{const out=await request('/auth/login',{username:$('username').value,password:$('password').value});if(!out.identity.merchant){await request('/auth/logout');throw Error('请使用商家账号登录；买家账号用于小程序。');}$('password').value='';await boot();}catch(e){$('login-error').textContent=e.message;}finally{button.disabled=false;}}
 async function logout(){if($('modal').open&&!closeModal())return;await request('/auth/logout');loginScreen();}
 async function refreshPaymentMode(){
@@ -48,7 +48,7 @@ async function refreshPaymentMode(){
  const copy=paymentMode==='wechat'?['微信支付已配置','真实付款订单的退款会涉及资金；支付授权仍需实单验证。']:paymentMode==='simulation'?['支付尚未启用','当前未配置微信支付。未实际扣款的订单仅更新退款状态。']:['支付状态待核实','暂时无法核对支付配置，请以订单支付记录为准。'];
  $('payment-mode-title').textContent=copy[0];$('payment-mode-note').textContent=copy[1];$('payment-login-note').textContent=copy.join(' · ');$('simulation-login-notes').innerHTML=simulationNotesHtml();
 }
-async function boot(){await refreshPaymentMode();try{const me=await request('/auth/me');if(!me.merchant)return loginScreen();const features=await api('identity');inventoryAvailable=features.capabilities?.includes('inventory-v1')===true;fulfillmentAvailable=features.capabilities?.includes('fulfillment-issues-v1')===true;$('login').hidden=true;$('workspace').hidden=false;$('operator').textContent=me.username;await show();}catch(e){loginScreen();}}
+async function boot(){await refreshPaymentMode();try{const me=await request('/auth/me');if(!me.merchant)return loginScreen();const features=await api('identity');inventoryAvailable=features.capabilities?.includes('inventory-v1')===true;fulfillmentAvailable=features.capabilities?.includes('fulfillment-issues-v1')===true;$('login').hidden=true;$('workspace').hidden=false;$('operator').textContent=me.username;window.MerchantAlerts?.start(me,{expired:loginScreen,arrived:()=>{const focused=document.activeElement;if(tab==='orders'&&!$('modal').open&&!savingOrder&&!modalDirty&&!['INPUT','TEXTAREA','SELECT'].includes(focused?.tagName)&&!focused?.isContentEditable&&($('order-query')?.value||'')===orderSearch)void show('orders');},open:async id=>{if($('modal').open&&!closeModal())return false;if(id)await viewOrder(id);else await selectOrderQueue('todo');return true;}});await show();}catch(e){loginScreen();}}
 
 async function show(next=tab){
   tab=next;const revision=++viewRevision;
