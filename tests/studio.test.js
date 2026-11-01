@@ -28,3 +28,13 @@ test('首页配置权限、文案校验、场景白名单与商品推荐元数�
 test('首页精选剔除下架与缺货，狗狗筛选排除猫粮和适用待确认商品',()=>{const ps=domain.seed().products;assert.equal(studio.matches(ps[0],'狗狗'),false);assert.equal(studio.matches({id:'new'},'狗狗'),false);assert.equal(studio.matches({petScope:'通用'},'猫咪'),true);const result=studio.homeProducts([...ps,{...ps[0],id:'off',active:false,featured:true},{...ps[0],id:'zero',featured:true,skus:[{stock:0}]}]);assert.ok(result.featured.length);assert.ok(result.featured.every(p=>!['off','zero'].includes(p.id)));assert.equal(result.latest[0].id,ps.at(-1).id);});
 test('商品相册：最多六张、首图为封面、危险路径拒绝、旧数据兼容',()=>{const s=domain.seed(),p={...s.products[0],images:['/assets/toy-v2.jpg','/assets/food-v2.jpg']};let out=domain.execute(s,merchant,'saveProduct',p,{mock:true});assert.equal(out.result.image,p.images[0]);assert.deepEqual(out.result.images,p.images);assert.throws(()=>domain.execute(s,merchant,'saveProduct',{...p,images:Array(7).fill('/assets/toy-v2.jpg')},{mock:true}),/6/);assert.throws(()=>domain.execute(s,merchant,'saveProduct',{...p,images:['javascript:alert(1)']},{mock:true}),/IMAGE_PATH/);assert.equal(studio.withImage(p,'/assets/food-v2.jpg').images[0],'/assets/food-v2.jpg');assert.equal(studio.withoutImage(p,0).image,'/assets/food-v2.jpg');assert.deepEqual(studio.productImages({image:'/assets/toy-v2.jpg'}),['/assets/toy-v2.jpg']);});
 test('订单分页：买家隔离、商家权限、状态与关键词交集、非法页码拒绝',()=>{const s=domain.seed();s.orders=Array.from({length:23},(_,i)=>({id:'o'+i,userId:i<20?'b':'other',status:i%2?'PAID':'SHIPPED',createdAt:i,lines:[{name:i===3?'特殊[商品]':'玩具'}]}));let r=domain.execute(s,buyer,'ordersPage',{page:2,pageSize:5}).result;assert.equal(r.total,20);assert.equal(r.items.length,5);assert.ok(r.items.every(o=>o.userId==='b'));r=domain.execute(s,buyer,'ordersPage',{q:'[商品]',status:'PAID'}).result;assert.equal(r.total,1);assert.equal(r.items[0].id,'o3');assert.throws(()=>domain.execute(s,buyer,'merchantOrdersPage'),/FORBIDDEN/);assert.equal(domain.execute(s,merchant,'merchantOrdersPage').result.total,23);assert.throws(()=>domain.execute(s,buyer,'ordersPage',{pageSize:1000}),/PAGE_SIZE/);assert.throws(()=>domain.execute(s,buyer,'ordersPage',{page:0}),/PAGE/);});
+
+
+test('整套店铺图片包含官方标志时可保存，仍拒绝未知本地路径',()=>{
+ const before=domain.seed();
+ const input={...studio.defaults,cat:'/assets/bed-v3.jpg'};
+ const saved=domain.execute(before,{id:'owner',merchant:true},'saveStorefront',input,{mock:true});
+ assert.equal(saved.result.avatar,'/assets/kigi-logo.jpg');
+ assert.equal(saved.result.cat,'/assets/bed-v3.jpg');
+ assert.throws(()=>domain.execute(before,{id:'owner',merchant:true},'saveStorefront',{...input,avatar:'/assets/not-approved.jpg'},{mock:true}),/IMAGE_PATH/);
+});
