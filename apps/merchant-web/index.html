@@ -9,7 +9,7 @@
 </head>
 <body>
 <section id="login">
-  <div class="login-story"><span>奇迹空间</span><h1>商家后台</h1><p>管理商品、处理订单、更新店铺页面。</p><img src="/assets/hero-calm-v3.jpg" alt="猫咪"></div>
+  <div class="login-story"><div class="merchant-logo-frame"><img src="/assets/kigi-logo.jpg" alt="KIGIwish 奇迹味时"></div><span>奇迹空间</span><h1>商家后台</h1><p>管理商品、处理订单、更新店铺页面。</p><img src="/assets/hero-calm-v3.jpg" alt="猫咪"></div>
   <form class="login-form" onsubmit="login(event)">
     <h2>登录</h2><p class="muted">请使用商家账号</p>
     <label>账号<input id="username" autocomplete="username" required placeholder="商家账号"></label>
@@ -21,7 +21,7 @@
 </section>
 <div id="workspace" hidden>
   <aside class="admin-sidebar">
-    <div class="admin-brand"><span>奇迹空间<small>商家后台</small></span></div>
+    <div class="admin-brand"><div class="merchant-logo-frame"><img src="/assets/kigi-logo.jpg" alt="KIGIwish 奇迹味时"></div><span>奇迹空间<small>商家后台</small></span></div>
     <nav aria-label="商家导航">
       <button data-section="orders" onclick="show('orders')">订单</button>
       <button data-section="products" onclick="show('products')">商品</button>
