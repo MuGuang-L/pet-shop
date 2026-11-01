@@ -108,3 +108,5 @@ test('微信订单入口热启动更新订单，普通前后台切换不重复�
  p.onShow();await idle(p);assert.equal(p.data.selectedOrder.id,'Ptrade789012');assert.equal(app.globalData.orderEntry,null);
  p.close();definition.onShow({path:'pages/shop/index',query:{}});p.onShow();await idle(p);assert.equal(p.data.selectedOrder,null);assert.equal(reads,1);
 });
+
+test('联系商家说明按需展开，切换不触发订单或付款请求',()=>{const {p,calls}=fixture();p.toggleSupportSection(event({section:'delivery'}));assert.equal(p.data.supportSection,'delivery');p.toggleSupportSection(event({section:'pickup'}));assert.equal(p.data.supportSection,'pickup');p.toggleSupportSection(event({section:'pickup'}));assert.equal(p.data.supportSection,'');p.toggleSupportSection(event({section:'payment'}));assert.equal(p.data.supportSection,'');assert.equal(calls.length,0);});

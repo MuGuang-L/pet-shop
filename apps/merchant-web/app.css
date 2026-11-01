@@ -248,4 +248,11 @@ input[readonly]{background:#f3f0ee;color:#857c75}
 .simulation-notes{font-size:13px;line-height:1.9;color:#70655d}.simulation-notes p{margin:14px 0}.simulation-notes summary{cursor:pointer;color:#a9420e}.login-form .simulation-notes{margin-top:20px;padding-top:16px;border-top:1px solid #e7dfda}
 
 /* Use the merchant-supplied logo without cropping its lettering. */
-.merchant-logo-frame{position:relative;overflow:hidden;width:110px;height:52px;background:white;border-radius:6px;flex-shrink:0}.merchant-logo-frame img,.login-story .merchant-logo-frame img{display:block;position:absolute;width:155px;height:155px;max-width:none;left:-22px;top:-51px;margin:0;border-radius:0;object-fit:contain}.admin-brand{display:flex;flex-direction:column;align-items:flex-start;gap:12px}.login-story>.merchant-logo-frame{margin-bottom:24px}
+.merchant-logo-frame{position:relative;overflow:hidden;width:110px;height:52px;background:transparent;border-radius:0;flex-shrink:0}.merchant-logo-frame img,.login-story .merchant-logo-frame img{display:block;position:absolute;width:155px;height:155px;max-width:none;left:-22px;top:-51px;margin:0;border-radius:0;object-fit:contain}.admin-brand{display:flex;flex-direction:column;align-items:flex-start;gap:12px}.login-story>.merchant-logo-frame{margin-bottom:24px}
+
+/* Neutral work surfaces; brand orange is reserved for actions. */
+.merchant-logo-frame{isolation:isolate}.merchant-logo-frame img,.login-story .merchant-logo-frame img{mix-blend-mode:multiply}
+body{background:#f6f7f8;color:#242424}.admin-sidebar{background:#fff}.admin-header{border-bottom:1px solid #e9e9e9;padding-bottom:20px}.admin-header h1{font-size:24px;letter-spacing:0}.admin-header p{font-size:13px;color:#777}
+.order-card,.table-panel,.settings-panel{box-shadow:none;border-color:#e8e8e8;border-radius:8px}.workspace-footnote{color:#777;font-size:12px}.order-tasks button{background:#fff}.order-tasks button strong{font-size:28px}.badge{border-radius:4px}.task-heading span{display:none}
+
+.shop-preview-card{height:auto;min-height:0;aspect-ratio:3/2}.shop-preview-card>img{display:block;width:100%;height:100%;object-fit:contain}.shop-preview-card h3{font-size:clamp(18px,2vw,28px);max-width:48%;margin-top:24px}.shop-preview-card p{max-width:46%}

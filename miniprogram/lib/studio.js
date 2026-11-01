@@ -10,7 +10,7 @@ const simulationNotes=[
  '买家账号只能查看自己的订单；商家账号可以查看处理订单所需的收货信息。不要把商家账号提供给买家使用。',
  '退出登录会清除当前登录状态，不会删除已保存的使用记录。记录会保留并备份，如需清理，请联系分配账号的维护者。'
 ];
-const homeDefaults={headline:'奇迹空间\n宠物咖啡店',subtitle:'宠物百货、咖啡烘焙店',featuredTitle:'店主精选',featuredIntro:'从吃饭到玩耍，把日常照顾得刚刚好。',newTitle:'上新小货架',scenes:[{key:'meal',category:'主粮',title:'把饭点变成期待',text:'主粮按需选，日常好好吃',image:'food-v2'},{key:'play',category:'玩具',title:'今天，陪它玩一会儿',text:'把陪伴放进日常',image:'toy-v2'},{key:'care',category:'清洁',title:'蓬松干净的小日子',text:'梳理与清洁，一起慢慢来',image:'care-v2'}]};
+const homeDefaults={headline:'奇迹空间\n宠物咖啡店',subtitle:'宠物百货、咖啡烘焙店',featuredTitle:'店主精选',featuredIntro:'主粮、玩具与日常用品',newTitle:'新品上架',scenes:[{key:'meal',category:'主粮',title:'主粮',text:'猫粮 · 狗粮',image:'food-v2'},{key:'play',category:'玩具',title:'玩具',text:'互动 · 磨牙',image:'toy-v2'},{key:'care',category:'清洁',title:'清洁护理',text:'梳理 · 清洁',image:'care-v2'}]};
 function petOf(p){return p.petScope||({food:'猫咪',toy:'通用',care:'通用'}[p.id])||'待确认';}
 function featuredOf(p){return p.featured===undefined?['food','toy'].includes(p.id):p.featured;}
 function matches(p,pet){return pet==='全部'||petOf(p)===pet||petOf(p)==='通用';}
