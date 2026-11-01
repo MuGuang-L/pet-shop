@@ -28,5 +28,6 @@ Page({
  more(){if(!this.data.busy&&this.data.page<this.data.pages)return this.load(this.data.page+1,true);},
  showOrder(e){return this.openOrder(e);},
  openOrder(e){const id=e.currentTarget.dataset.id;if(this.data.orders.some(o=>o.id===id))wx.navigateTo({url:'/pages/shop/index?order_id='+encodeURIComponent(id)+(['payment','fulfillment','aftersale'].includes(e.currentTarget.dataset.section)?'&section='+e.currentTarget.dataset.section:'')});},
+ back(){if(typeof getCurrentPages==='function'&&getCurrentPages().length>1)wx.navigateBack();else wx.reLaunch({url:'/pages/shop/index?tab=account'});},
  shop(){wx.reLaunch({url:'/pages/shop/index'});}
 });

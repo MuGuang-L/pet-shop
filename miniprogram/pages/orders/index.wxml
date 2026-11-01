@@ -13,7 +13,7 @@
 </template>
 
 <view class="order-center">
- <view class="center-heading">我的订单</view>
+ <view class="center-navigation"><button class="orders-back" bindtap="back">‹ 返回</button><view class="center-heading">我的订单</view><button class="orders-back" bindtap="shop">首页</button></view>
 
  <scroll-view class="order-filters" scroll-x>
   <view class="filter-row"><button wx:for="{{filters}}" wx:key="id" class="filter {{status === item.id ? 'active' : ''}}" data-status="{{item.id}}" bindtap="filter" disabled="{{busy}}">{{item.name}}</button></view>

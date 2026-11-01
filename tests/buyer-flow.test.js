@@ -110,3 +110,10 @@ test('微信订单入口热启动更新订单，普通前后台切换不重复�
 });
 
 test('联系商家说明按需展开，切换不触发订单或付款请求',()=>{const {p,calls}=fixture();p.toggleSupportSection(event({section:'delivery'}));assert.equal(p.data.supportSection,'delivery');p.toggleSupportSection(event({section:'pickup'}));assert.equal(p.data.supportSection,'pickup');p.toggleSupportSection(event({section:'pickup'}));assert.equal(p.data.supportSection,'');p.toggleSupportSection(event({section:'payment'}));assert.equal(p.data.supportSection,'');assert.equal(calls.length,0);});
+
+test('切换买家身份清空上一账号购物车、订单详情和收货草稿',async()=>{
+ const {p,api,wx}=fixture();const original=api.call;let id='buyer-a';api.call=async(action,input)=>action==='identity'?{id,merchant:false}:original(action,input);
+ await p.refresh();p.setData({cart:[{productId:'p',skuId:'s',qty:1}],orders:[{id:'private'}],selectedOrder:{id:'private'},pickupContact:{name:'A',phone:'13800000000'}});id='buyer-b';await p.refresh();
+ assert.equal(p.data.cart.length,0);assert.equal(p.data.orders.length,0);assert.equal(p.data.selectedOrder,null);assert.equal(p.data.pickupContact.phone,'');assert.equal(wx.getStorageSync('pet-cart-owner'),'buyer-b');
+});
+test('订单列表返回个人中心不会下单或付款',()=>{const {p,calls}=fixture();p.setData({tab:'orders'});p.backOrders();assert.equal(p.data.tab,'account');assert.equal(calls.length,0);});
