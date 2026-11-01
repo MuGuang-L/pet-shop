@@ -13,7 +13,7 @@
 </template>
 
 <view class="order-center">
- <view wx:if="{{rootEntry}}" class="center-navigation"><button class="orders-back" bindtap="back">‹ 返回</button><button class="orders-back" bindtap="shop">首页</button></view>
+ <view class="center-navigation"><button class="orders-back" bindtap="back">‹ 返回</button><button class="orders-back" bindtap="shop">首页</button></view>
 
  <view class="center-tabs"><t-tabs value="{{status}}" bind:change="filter"><t-tab-panel wx:for="{{filters}}" wx:key="id" value="{{item.id}}" label="{{item.name}}" disabled="{{busy}}"/></t-tabs></view>
  <view class="center-search"><input value="{{query}}" bindinput="queryInput" bindconfirm="search" confirm-type="search" placeholder="搜索商品或订单号" maxlength="80"/><t-button variant="text" size="small" bind:tap="search" disabled="{{busy}}">搜索</t-button></view>
