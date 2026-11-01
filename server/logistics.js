@@ -4,6 +4,7 @@ const {carriers}=require('../cloudfunctions/shop/studio');
 const INTERVAL=31*60*1000;
 const states={'0':'运输中','1':'已揽收','2':'物流异常','3':'已签收','4':'退签','5':'派送中','6':'退回中','7':'转投','8':'清关中','14':'拒签'};
 function createLogistics({store,env=process.env,fetch=globalThis.fetch,now=Date.now}={}){
+ if(env.LOGISTICS_PROVIDER!=='kuaidi100')return require('./wechat-logistics').createWechatLogistics({store,env,fetch,now});
  const key=env.KUAIDI100_KEY,customer=env.KUAIDI100_CUSTOMER;
  return {async tracking(actor,input){
   // Always authorize the order before touching cache or making paid external requests.

@@ -1,4 +1,5 @@
 const api=require('../../services/api');
+const logisticsPlugin=require('../../services/logistics-plugin');
 const checkout=require('../../services/checkout');
 const orderDisplay=require('../../services/order-display');
 const studio=require('../../lib/studio');
@@ -166,12 +167,21 @@ Page({
  action(e){const action=e.currentTarget.dataset.action;this.run(async()=>{const prompts={mockPay:['免扣款操作','仅未扣款，不会产生真实扣款。是否继续？'],payment:['微信支付','将使用微信支付完成付款。是否继续？'],cancel:['取消订单','确认取消未付款订单并释放库存？'],confirmReceipt:['确认收货','请确认商品已送到并核对无误，再确认收货。'],refundWithdraw:['撤回售后','确认撤回当前售后申请？'],returnShip:['提交退货物流','请核对退货运单，提交后将锁定。是否继续？']};if(prompts[action]&&!await this.confirm(...prompts[action]))return;if(['mockPay','payment'].includes(action)&&paymentClock(this.data.selectedOrder).payExpired){const fresh=await api.call('order',{id:this.data.selectedOrder.id});this.setData({selectedOrder:order(fresh)});throw Error('付款截止时间已到，请核对最新订单状态');}if(!['mockPay','payment','cancel','confirmReceipt','refundRequest','refundWithdraw','returnShip'].includes(action))throw Error('此操作请在商家网页处理');const f=this.data.afterForm||{},input={id:this.data.selectedOrder.id,caseId:this.data.selectedOrder.refund?.caseId};if(action==='refundRequest')Object.assign(input,{reason:f.reason,type:f.type});if(action==='returnShip')Object.assign(input,{company:f.company,number:f.number});if(action==='payment'){const result=await api.call('payment',input);if(result.wechat)await api.requestPayment(result.wechat);const paid=await api.call('paymentSync',{id:input.id});this.setData({selectedOrder:order(paid)});}else{const o=await api.call(action,input);this.setData({selectedOrder:order(o)});}if(this.data.tab==='orders')await this.loadOrderPage();});},
  toggleDeliveryTimeline(){this.setData({deliveryExpanded:!this.data.deliveryExpanded});},
  copyOrderNumber(){if(this.data.selectedOrder)wx.setClipboardData({data:this.data.selectedOrder.id});},
- async tracking(){
+ async openOfficialTracking(){
+  if(this.data.trackingLoading)return;
+  if(!logisticsPlugin.available()){wx.showToast({title:'物流查询尚未开通，请复制运单号查询',icon:'none'});return;}
+  const id=this.data.selectedOrder?.id;
+  const result=await this.tracking(true);
+  if(this.data.selectedOrder?.id!==id)return;
+  if(!result?.waybillToken){wx.showToast({title:result?.notice||'物流暂不可用，请稍后再试',icon:'none'});return;}
+  try{await logisticsPlugin.open(result.waybillToken);}catch{wx.showToast({title:'微信物流暂无法打开，请稍后重试',icon:'none'});}
+ },
+ async tracking(open=false){
   const current=this.data.selectedOrder;if(!current||current.isPickup)return;
   const id=current.id,number=current.shipping?.number;const requestId=this.trackingRequest=(this.trackingRequest||0)+1;
   this.setData({trackingLoading:true,trackingError:''});
-  try{const result=await api.call('tracking',{id});if(this.trackingRequest!==requestId||this.data.selectedOrder?.id!==id||this.data.selectedOrder?.shipping?.number!==number)return;
-   this.setData({tracking:result?{...result,updatedText:result.updatedAt?formatTime(result.updatedAt):''}:null});
+  try{const result=await api.call('tracking',{id,open:open===true});if(this.trackingRequest!==requestId||this.data.selectedOrder?.id!==id||this.data.selectedOrder?.shipping?.number!==number)return;
+   this.setData({tracking:result?{...result,updatedText:result.updatedAt?formatTime(result.updatedAt):''}:null});return result;
   }catch{if(this.trackingRequest===requestId&&this.data.selectedOrder?.id===id)this.setData({trackingError:'物流查询失败，请稍后重试；不影响订单状态'});}
   finally{if(this.trackingRequest===requestId&&this.data.selectedOrder?.id===id&&this.data.selectedOrder?.shipping?.number===number)this.setData({trackingLoading:false});}
  },

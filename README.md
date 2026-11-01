@@ -80,4 +80,4 @@ npm test
 
 开发规范见 [CONTRIBUTING.md](CONTRIBUTING.md)，接口见 [买家 API](docs/BUYER-API.md)。账号、密钥、个人配置、数据库和调试材料不得提交。第三方组件与图片来源见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) 和 [DESIGN-SOURCES.md](DESIGN-SOURCES.md)。
 
-快递配送需选择承运公司并录入运单号；注册快递100、服务端密钥配置及查询限制见 [快递配送接入](docs/EXPRESS-DELIVERY.md)。
+快递配送需选择承运公司并录入运单号；默认使用微信官方物流查询插件；开通条件、启用步骤及查询限制见 [快递配送接入](docs/EXPRESS-DELIVERY.md)。

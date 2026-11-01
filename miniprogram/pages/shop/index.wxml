@@ -50,9 +50,9 @@
   </block>
  </view>
  <button wx:if="{{selectedOrder.deliveryTimeline.length > 3}}" class="delivery-expand" bindtap="toggleDeliveryTimeline">{{deliveryExpanded ? '收起历史记录 ↑' : '展开全部进度 ↓'}}</button>
- <view class="delivery-source">{{selectedOrder.isPickup ? '进度根据门店备货及核销记录更新' : '订单进度根据商家操作更新；快递轨迹见下方'}}</view>
+ <view class="delivery-source">{{selectedOrder.isPickup ? '进度根据门店备货及核销记录更新' : '订单进度根据商家操作更新；点击下方查看快递物流'}}</view>
 </view></view></view><view wx:if="{{!selectedOrder.isPickup}}" class="panel express-card">
- <view class="delivery-timeline-heading"><text>快递物流</text><button class="delivery-copy" disabled="{{trackingLoading}}" bindtap="tracking">{{trackingLoading ? '查询中…' : '刷新物流'}}</button></view>
+ <view class="delivery-timeline-heading"><text>快递物流</text><button wx:if="{{tracking.provider === 'wechat'}}" class="delivery-copy" disabled="{{trackingLoading}}" bindtap="openOfficialTracking">{{trackingLoading ? '查询中…' : '查看物流'}}</button><button wx:else class="delivery-copy" disabled="{{trackingLoading}}" bindtap="tracking">{{trackingLoading ? '查询中…' : '刷新物流'}}</button></view>
  <view wx:if="{{tracking.statusText}}" class="express-status">{{tracking.statusText}}</view>
  <view wx:if="{{tracking.updatedText}}" class="delivery-order-number">更新于 {{tracking.updatedText}}</view>
  <view wx:if="{{trackingError}}" class="express-notice">{{trackingError}}</view>

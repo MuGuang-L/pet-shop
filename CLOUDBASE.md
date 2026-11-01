@@ -90,4 +90,4 @@ MySQL 连接池最多保留 2 个空闲连接，空闲超过 60 秒回收，后�
 
 ## 快递物流查询
 
-快递配送使用快递100实时查询，配置 `KUAIDI100_KEY` 与 `KUAIDI100_CUSTOMER` 后重新发布。两项仅存服务端；不开通时仍可录入快递公司和运单号，查询页面提示未开通。启动自动创建独立的物流缓存表，不修改既有订单。注册、额度、更新顺序及校验方式见 [快递配送](docs/EXPRESS-DELIVERY.md)。
+快递配送默认使用微信官方物流查询插件。未开通时显示运单号及说明，不调用快递100。开通后配置 `WECHAT_LOGISTICS_ENABLED=1`、`WECHAT_APPID`、`WECHAT_MINIPROGRAM_SECRET` 和正确的 `PUBLIC_ORIGIN`，启用客户端插件并分别发布后端与小程序。详细步骤与权限条件见 [快递配送](docs/EXPRESS-DELIVERY.md)。

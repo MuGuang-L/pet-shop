@@ -11,7 +11,7 @@
 - [本地备份](BACKUP-RECOVERY.md)、[本地进程恢复](RUNTIME-RECOVERY.md)、[MongoDB 数据规模](DATABASE-SCALE.md)
 - [组件与参考](third-party/README.md)、[素材](../DESIGN-SOURCES.md)、[第三方说明](../THIRD_PARTY_NOTICES.md)
 
-- [快递配送与快递100配置](EXPRESS-DELIVERY.md)
+- [快递配送与微信官方物流配置](EXPRESS-DELIVERY.md)
 - [商家来单提醒](MERCHANT-ALERTS.md)
 
 ## 验收记录

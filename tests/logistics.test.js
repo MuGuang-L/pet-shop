@@ -1,7 +1,7 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),{createHash}=require('node:crypto');
 const {createLogistics,INTERVAL}=require('../server/logistics');
-const env={KUAIDI100_KEY:'test-only-key',KUAIDI100_CUSTOMER:'test-customer'};
+const env={LOGISTICS_PROVIDER:'kuaidi100',KUAIDI100_KEY:'test-only-key',KUAIDI100_CUSTOMER:'test-customer'};
 function fixture(){
  let at=100000,requests=0;const records=new Map();
  const order={id:'o1',userId:'alice',status:'SHIPPED',address:{phone:'13800000000'},fulfillment:{type:'DELIVERY'},shipping:{company:'顺丰速运',carrier:'shunfeng',number:'SF123456789',at:100}};
