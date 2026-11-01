@@ -20,7 +20,7 @@ async function start({connect=connectDatabase,port=4173,host='127.0.0.1',retryDe
  const current=()=>{if(store)return store;const error=Error('DATABASE_NOT_READY');error.name='MysqlUnavailable';throw error;};
  const wechat=httpOptions.wechat===undefined?loadWechat():httpOptions.wechat;
  const facade={get engine(){return current().engine;},ping:()=>{const db=current();return typeof db.ping==='function'?db.ping():db.db.command({ping:1});},get db(){return current().db;},execute:(...args)=>current().execute(...args),settlePayment:(payload,at)=>current().settlePayment(payload,at),settleRefund:(payload,at)=>current().settleRefund(payload,at),upsertTrade:doc=>current().upsertTrade(doc),getTrade:id=>current().getTrade(id),tradesByOrder:id=>current().tradesByOrder(id)};
- for(const method of ['reserveTrade','saveTrade','pendingTrades'])facade[method]=(...args)=>current()[method](...args);
+ for(const method of ['reserveTrade','saveTrade','pendingTrades','claimLogistics','saveLogistics'])facade[method]=(...args)=>current()[method](...args);
  const maintenance=require('./maintenance').createMaintenance({getStore:()=>store,reconcile:()=>server.reconcilePayments(),paymentEnabled:!!wechat?.payReady,paymentInterval,logger});
  const server=createServer(facade,{...httpOptions,auth:httpOptions.auth||resolveAuth(),wechat,onActivity:maintenance.activity});
  await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(port,host,()=>{server.removeListener('error',reject);resolve();});});

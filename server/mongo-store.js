@@ -158,5 +158,13 @@ class MongoStore{
   return stored;
  }
  async pendingTrades(at,limit=10){return this.db.collection('wechat_trades').find({status:{$nin:['SUCCESS','CLOSED','REFUNDED','DUPLICATE_REFUNDED']},$or:[{nextCheckAt:{$lte:at}},{nextCheckAt:{$exists:false}}]}).sort({nextCheckAt:1,createdAt:1}).limit(limit).toArray();}
+ async claimLogistics(id,at,nextAt,token){
+  const c=this.db.collection('logistics_cache');
+  try{await c.updateOne({_id:id},{$setOnInsert:{nextAt:0,token:'',result:null}},{upsert:true});}catch(e){if(e.code!==11000)throw e;}
+  const claimed=await c.findOneAndUpdate({_id:id,nextAt:{$lte:at}},{$set:{nextAt,token}},{returnDocument:'after'});
+  return claimed||await c.findOne({_id:id});
+ }
+ async saveLogistics(id,token,result){await this.db.collection('logistics_cache').updateOne({_id:id,token},{$set:{result}});}
+
 }
 module.exports={MongoStore};

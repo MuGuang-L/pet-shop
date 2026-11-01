@@ -29,7 +29,8 @@ function withoutImage(p,index){const images=productImages(p);images.splice(index
 function cents(value){const s=String(value).trim();if(!/^\d+(\.\d{1,2})?$/.test(s))throw Error('售价请填写大于 0 的金额，最多两位小数');const [a,b='']=s.split('.');const n=Number(a)*100+Number(b.padEnd(2,'0'));if(!Number.isSafeInteger(n)||n<=0||n>10000000)throw Error('售价须在 0.01～100000 元之间');return n;}
 function images(target){return assets.filter(a=>target==='hero'?a.kind==='横幅':target==='empty'?a.kind==='场景'||a.kind==='分类':target==='avatar'?a.kind==='分类':target==='product'?a.kind==='商品':a.kind!=='横幅'&&a.kind!=='场景');}
 const pickupStore={name:'奇迹空间宠物咖啡店',detail:'海口市美兰区蓝天街道大英山西二街3号海航豪庭A05商业街7#楼7-2#商铺第一层（KIGI Space 奇迹空间）',hours:'每日 10:00—24:00',phone:'19389977085'};
-const issueLabels={OUT_OF_STOCK:'缺货待处理',DELIVERY_FAILED:'外送未送达',PICKUP_DELAY:'自提延期',CONTACT_UNREACHABLE:'联系未果'};
-function fulfillmentLabel(o){if(o.fulfillment?.issue?.status==='OPEN'&&['PAID','SHIPPED'].includes(o.status))return issueLabels[o.fulfillment.issue.type]||'履约待处理';if(o.fulfillment?.type==='PICKUP'){if(o.status==='PAID')return o.fulfillment.readyAt?'待到店自提':'门店备货中';if(o.status==='COMPLETED')return '已自提';}return ({PAID:'商家备货中',SHIPPED:'商家配送中'})[o.status]||'';}
-return {assets,slots,defaults,templates,create,cents,images,pets,simulationNotes,homeDefaults,petOf,featuredOf,matches,homeProducts,productImages,withImage,withoutImage,afterStages,pickupStore,fulfillmentLabel,issueLabels};
+const issueLabels={OUT_OF_STOCK:'缺货待处理',DELIVERY_FAILED:'快递未送达',PICKUP_DELAY:'自提延期',CONTACT_UNREACHABLE:'联系未果'};
+function fulfillmentLabel(o){if(o.fulfillment?.issue?.status==='OPEN'&&['PAID','SHIPPED'].includes(o.status))return issueLabels[o.fulfillment.issue.type]||'履约待处理';if(o.fulfillment?.type==='PICKUP'){if(o.status==='PAID')return o.fulfillment.readyAt?'待到店自提':'门店备货中';if(o.status==='COMPLETED')return '已自提';}return ({PAID:'商家备货中',SHIPPED:'已发货'})[o.status]||'';}
+const carriers={shunfeng:'顺丰速运',zhongtong:'中通快递',yuantong:'圆通速递',shentong:'申通快递',yunda:'韵达快递',jd:'京东物流',ems:'EMS',youzhengguonei:'邮政包裹',debangkuaidi:'德邦快递',jtexpress:'极兔速递'};
+return {carriers,assets,slots,defaults,templates,create,cents,images,pets,simulationNotes,homeDefaults,petOf,featuredOf,matches,homeProducts,productImages,withImage,withoutImage,afterStages,pickupStore,fulfillmentLabel,issueLabels};
 });

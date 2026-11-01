@@ -117,3 +117,12 @@ test('切换买家身份清空上一账号购物车、订单详情和收货草�
  assert.equal(p.data.cart.length,0);assert.equal(p.data.orders.length,0);assert.equal(p.data.selectedOrder,null);assert.equal(p.data.pickupContact.phone,'');assert.equal(wx.getStorageSync('pet-cart-owner'),'buyer-b');
 });
 test('订单列表返回个人中心不会下单或付款',()=>{const {p,calls}=fixture();p.setData({tab:'orders'});p.backOrders();assert.equal(p.data.tab,'account');assert.equal(calls.length,0);});
+
+test('快递查询迟到不覆盖另一订单或同单较新的查询，失败保留已读轨迹',async()=>{
+ const {p,api}=fixture();const pending=[];api.call=()=>new Promise((resolve,reject)=>pending.push({resolve,reject}));
+ p.setData({selectedOrder:{id:'one',shipping:{number:'SF000001'}}});const first=p.tracking();
+ p.setData({selectedOrder:{id:'two',shipping:{number:'SF000002'}},tracking:null});const second=p.tracking();
+ pending[1].resolve({events:[{text:'第二单轨迹'}]});await second;pending[0].resolve({events:[{text:'第一单轨迹'}]});await first;assert.equal(p.data.tracking.events[0].text,'第二单轨迹');
+ const older=p.tracking(),newer=p.tracking();pending[3].resolve({events:[{text:'最新轨迹'}]});await newer;pending[2].resolve({events:[{text:'旧响应'}]});await older;assert.equal(p.data.tracking.events[0].text,'最新轨迹');
+ const failed=p.tracking();pending[4].reject(Error('network'));await failed;assert.equal(p.data.tracking.events[0].text,'最新轨迹');assert.match(p.data.trackingError,/失败/);assert.equal(p.data.trackingLoading,false);
+});

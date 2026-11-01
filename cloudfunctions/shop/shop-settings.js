@@ -9,7 +9,7 @@ function read(state){
   return {revision:0,updatedAt:null,store:{name:studio.pickupStore.name,detail:studio.pickupStore.detail,phone:studio.pickupStore.phone},
     acceptingOrders:true,hours:{days:[1,2,3,4,5,6,7],open:'10:00',close:'00:00',allDay:false,enforce:false},
     pickup:{enabled:true,instructions:'请收到备货完成通知后，凭提货码到店领取。'},
-    delivery:{enabled:true,fee:state.shippingFee??800,minimum:0,freeAbove:null,area:'请先与门店确认是否在外送范围内。',estimateMinutes:60,instructions:'由商家安排配送，送出后登记单号或备注。'}};
+    delivery:{enabled:true,fee:state.shippingFee??800,minimum:0,freeAbove:null,area:'请先与门店确认是否在配送范围内。',estimateMinutes:60,estimateText:'以快递公司实际运输时效为准',instructions:'商家寄件后提供快递公司与运单号，可在订单详情查看物流。'}};
 }
 function hoursText(hours){return (hours.days.length===7?'每日':hours.days.map(d=>days[d-1]).join('、'))+' '+(hours.allDay?'全天':hours.open+'—'+(hours.close==='00:00'?'24:00':hours.close));}
 function pickupStore(settings){return {...settings.store,hours:hoursText(settings.hours)};}
@@ -35,7 +35,7 @@ function save(state,input,now){
   const hours={days:[...h.days].sort(),open:h.open,close:h.close,allDay:bool(h.allDay,'全天营业'),enforce:bool(h.enforce,'营业时间接单限制')};
   need(hours.allDay||hours.close==='00:00'||hours.open<hours.close,'结束时间须晚于开始时间；跨夜营业请暂用全天营业');
   const pickup={enabled:bool(input.pickup.enabled,'到店自提'),instructions:text(input.pickup.instructions,0,300,'自提说明')};
-  const d=input.delivery,delivery={enabled:bool(d.enabled,'商家外送'),fee:amount(d.fee,'外送费'),minimum:amount(d.minimum,'外送起送金额'),freeAbove:d.freeAbove===null?null:amount(d.freeAbove,'免外送费门槛'),area:text(d.area,1,200,'外送范围'),estimateMinutes:d.estimateMinutes,instructions:text(d.instructions,0,300,'外送说明')};
+  const d=input.delivery,delivery={enabled:bool(d.enabled,'快递配送'),fee:amount(d.fee,'运费'),minimum:amount(d.minimum,'快递配送起送金额'),freeAbove:d.freeAbove===null?null:amount(d.freeAbove,'免运费门槛'),area:text(d.area,1,200,'配送范围'),estimateMinutes:d.estimateMinutes,instructions:text(d.instructions,0,300,'配送说明'),estimateText:text(d.estimateText??current.delivery.estimateText??'以快递公司实际运输时效为准',1,100,'快递时效说明')};
   need(Number.isInteger(delivery.estimateMinutes)&&delivery.estimateMinutes>=1&&delivery.estimateMinutes<=1440,'预计送达时间须为 1 到 1440 分钟');
   const acceptingOrders=bool(input.acceptingOrders,'接单状态');need(!acceptingOrders||pickup.enabled||delivery.enabled,'接单时请至少开启一种履约方式');
   state.shopSettings={revision:current.revision+1,updatedAt:now,store,acceptingOrders,hours,pickup,delivery};
@@ -44,10 +44,10 @@ function save(state,input,now){
 }
 function quote(state,input,now){
   const settings=read(state),type=input.fulfillment||'DELIVERY';
-  need(['PICKUP','DELIVERY'].includes(type),'请选择自提或商家外送');
+  need(['PICKUP','DELIVERY'].includes(type),'请选择自提或快递配送');
   need(settings.acceptingOrders,'门店已暂停接单，请稍后再试');
   need(openNow(settings,now),'当前不在接单时间内，请在营业时间下单');
-  need(type==='PICKUP'?settings.pickup.enabled:settings.delivery.enabled,type==='PICKUP'?'门店暂未开放到店自提':'门店暂未开放商家外送');
+  need(type==='PICKUP'?settings.pickup.enabled:settings.delivery.enabled,type==='PICKUP'?'门店暂未开放到店自提':'门店暂未开放快递配送');
   if(input.settingsRevision!==undefined)need(input.settingsRevision===settings.revision,'门店设置已变化，请刷新结算信息后重试');
   need(Array.isArray(input.lines)&&input.lines.length>0&&input.lines.length<=30,'INVALID_LINES');
   let subtotal=0;const seen=new Set();
@@ -58,7 +58,7 @@ function quote(state,input,now){
     const sku=product.skus.find(k=>k.id===line.skuId);need(sku,'SKU_NOT_FOUND');need(sku.stock>=line.qty,'OUT_OF_STOCK');subtotal+=sku.price*line.qty;
   }
   need(Number.isSafeInteger(subtotal)&&subtotal<=100000000,'AMOUNT_LIMIT');
-  if(type==='DELIVERY')need(subtotal>=settings.delivery.minimum,'外送商品金额须满 '+(settings.delivery.minimum/100).toFixed(2)+' 元');
+  if(type==='DELIVERY')need(subtotal>=settings.delivery.minimum,'配送商品金额须满 '+(settings.delivery.minimum/100).toFixed(2)+' 元');
   const shippingFee=type==='PICKUP'||(settings.delivery.freeAbove!==null&&subtotal>=settings.delivery.freeAbove)?0:settings.delivery.fee;
   const total=subtotal+shippingFee;
   if(input.expectedTotal!==undefined)need(input.expectedTotal===total,'订单金额已变化，请刷新结算信息后重试');

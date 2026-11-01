@@ -65,6 +65,7 @@ class MysqlStore{
     created_at BIGINT NOT NULL,
     KEY idx_order_created (order_id, created_at)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+  await this.query(`CREATE TABLE IF NOT EXISTS logistics_cache (id VARCHAR(64) NOT NULL PRIMARY KEY, next_at BIGINT NOT NULL, token VARCHAR(36) NOT NULL, payload JSON NULL) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
   await this.transaction(async connection=>{
     const [rows]=await connection.query('SELECT schema_version FROM shop_state WHERE id=? FOR UPDATE',['singleton']);
     if(rows.length){if(Number(rows[0].schema_version)!==1)throw Error('UNSUPPORTED_DATABASE_SCHEMA');return;}
@@ -178,6 +179,17 @@ class MysqlStore{
   const rows=await this.query('SELECT payload FROM wechat_trades WHERE order_id=? ORDER BY created_at DESC',[orderId]);
   return rows.map(row=>parseValue(row.payload));
  }
+ async claimLogistics(id,at,nextAt,token){
+  return this.transaction(async connection=>{
+   await connection.query('INSERT IGNORE INTO logistics_cache (id,next_at,token,payload) VALUES (?,0,?,NULL)',[id,'']);
+   const [rows]=await connection.query('SELECT next_at,token,payload FROM logistics_cache WHERE id=? FOR UPDATE',[id]);
+   const row=rows[0],result=row.payload?parseValue(row.payload):null;
+   if(Number(row.next_at)>at)return {nextAt:Number(row.next_at),token:row.token,result};
+   await connection.query('UPDATE logistics_cache SET next_at=?,token=? WHERE id=?',[nextAt,token,id]);
+   return {nextAt,token,result};
+  });
+ }
+ async saveLogistics(id,token,result){await this.query('UPDATE logistics_cache SET payload=CAST(? AS JSON) WHERE id=? AND token=?',[JSON.stringify(result),id,token]);}
  async close(){await this.pool.end();}
 }
 function mark(error){

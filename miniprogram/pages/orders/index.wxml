@@ -17,7 +17,7 @@
 
  <view class="center-tabs"><t-tabs value="{{status}}" bind:change="filter"><t-tab-panel wx:for="{{filters}}" wx:key="id" value="{{item.id}}" label="{{item.name}}" disabled="{{busy}}"/></t-tabs></view>
  <view class="center-search"><input value="{{query}}" bindinput="queryInput" bindconfirm="search" confirm-type="search" placeholder="搜索商品或订单号" maxlength="80"/><t-button variant="text" size="small" bind:tap="search" disabled="{{busy}}">搜索</t-button></view>
- <view wx:if="{{fulfillment !== 'ALL'}}" class="center-scope"><text>{{fulfillment === 'PICKUP' ? '到店自提' : '商家外送'}}</text><t-button size="extra-small" variant="text" bind:tap="clearScope">查看全部</t-button></view>
+ <view wx:if="{{fulfillment !== 'ALL'}}" class="center-scope"><text>{{fulfillment === 'PICKUP' ? '到店自提' : '快递配送'}}</text><t-button size="extra-small" variant="text" bind:tap="clearScope">查看全部</t-button></view>
  <view wx:if="{{error}}" class="center-message" role="alert"><view>{{error}}</view><button bindtap="retry" disabled="{{busy}}">重新加载</button></view>
  <view wx:elif="{{loginRequired}}" class="center-message"><view>请先进入店铺登录，再查看本人订单。</view><button bindtap="shop">进入店铺</button></view>
  <view wx:elif="{{!busy && !orders.length}}" class="center-message"><t-empty description="暂无相关订单"/><t-button theme="primary" variant="outline" size="small" bind:tap="shop">去逛逛</t-button></view>

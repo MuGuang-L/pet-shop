@@ -69,7 +69,7 @@ test('历史规模：超过 500 订单和 100 商品仍可经营，日常请求�
 test('跨订单退货：局部事务仍计入其他订单预留，失败不入账，取消后容量准确',{skip:!enabled},async()=>fixture(async store=>{
  const address=await store.execute(buyer,'saveAddress',contact,options);
  let o=await store.execute(buyer,'createOrder',{...orderInput('return-capacity-order'),fulfillment:'DELIVERY',addressId:address.id},options);
- await store.execute(buyer,'mockPay',{id:o.id},options);await store.execute(merchant,'ship',{id:o.id,note:'模拟送出'},options);
+ await store.execute(buyer,'mockPay',{id:o.id},options);await store.execute(merchant,'ship',{carrier:'shunfeng',number:'TEST123456',id:o.id,note:'模拟送出'},options);
  o=await store.execute(buyer,'refundRequest',{id:o.id,type:'RETURN_REFUND',reason:'模拟退货'},options);const ref={id:o.id,caseId:o.refund.caseId};
  await store.execute(merchant,'refundReview',{...ref,approve:true,note:'同意退回',returnAddress:contact},options);
  await store.execute(buyer,'returnShip',{...ref,company:'模拟快递',number:'RETURN1234'},options);

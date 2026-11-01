@@ -1,7 +1,8 @@
 'use strict';
+const {carriers}=require('./studio');
 const actions=new Set(['recordFulfillmentIssue','resolveFulfillmentIssue','merchantRefund']);
 const need=(ok,message)=>{if(!ok)throw Error(message);};
-const titles={OUT_OF_STOCK:'缺货待处理',DELIVERY_FAILED:'外送未送达',PICKUP_DELAY:'自提延期',CONTACT_UNREACHABLE:'联系未果'};
+const titles={OUT_OF_STOCK:'缺货待处理',DELIVERY_FAILED:'快递未送达',PICKUP_DELAY:'自提延期',CONTACT_UNREACHABLE:'联系未果'};
 function note(value){need(typeof value==='string'&&value.trim().length>0&&value.length<=300,'处理说明请填写 1～300 字');return value.trim();}
 function event(order,now,action,label,detail,actor='商家'){
  order.fulfillment.issue.timeline.push({at:now,action,label,detail,actor});order.fulfillment.issue.revision=(order.fulfillment.issue.revision||0)+1;order.fulfillment.issue.updatedAt=now;order.updatedAt=now;
@@ -31,14 +32,14 @@ function settleStock(state,order,actor,now,reservedStock){
 function handle(state,actor,action,input,{now}){
  need(actor.merchant===true,'FORBIDDEN');const order=state.orders.find(o=>o.id===input.id);need(order,'ORDER_NOT_FOUND');
  const detail=note(input.note);need(typeof input.requestKey==='string'&&/^[a-zA-Z0-9_-]{8,80}$/.test(input.requestKey),'INVALID_REQUEST_KEY');
- const key=JSON.stringify(['fulfillment',actor.id,input.requestKey]),fingerprint=JSON.stringify([action,input.id,input.issueId,input.issueRevision,input.type,input.resolution,detail,input.nextAt,input.number,input.confirm,input.items]);
+ const key=JSON.stringify(['fulfillment',actor.id,input.requestKey]),fingerprint=JSON.stringify([action,input.id,input.issueId,input.issueRevision,input.type,input.resolution,detail,input.nextAt,input.number,input.carrier,input.confirm,input.items]);
  if(state.keys[key]){need(state.keys[key].fingerprint===fingerprint,'处理请求已提交，请勿改动原请求重试');return order;}
  need(['PAID','SHIPPED'].includes(order.status),'订单状态已变化，请先处理当前订单或售后');
  const f=order.fulfillment||=( {type:'DELIVERY'} ),pickup=f.type==='PICKUP';
  if(action==='recordFulfillmentIssue'){
   need(typeof input.type==='string'&&Object.prototype.hasOwnProperty.call(titles,input.type),'请选择有效的履约问题');need(!f.issue||f.issue.status!=='OPEN','已有待处理问题，请先处理或更新约定时间');
-  if(input.type==='OUT_OF_STOCK')need(order.status==='PAID','已送出订单请登记外送问题');
-  if(input.type==='DELIVERY_FAILED')need(!pickup&&order.status==='SHIPPED','仅已送出的外送订单可登记未送达');
+  if(input.type==='OUT_OF_STOCK')need(order.status==='PAID','已送出订单请登记快递配送问题');
+  if(input.type==='DELIVERY_FAILED')need(!pickup&&order.status==='SHIPPED','仅已送出的快递配送订单可登记未送达');
   if(input.type==='PICKUP_DELAY')need(pickup&&order.status==='PAID'&&f.readyAt,'仅已备好的自提订单可登记延期');
   if(f.issue)(f.issueHistory ||= []).push(f.issue);
   f.issue={id:'f'+(++state.sequence),type:input.type,status:'OPEN',note:detail,createdAt:now,updatedAt:now,timeline:[]};
@@ -51,10 +52,10 @@ function handle(state,actor,action,input,{now}){
     need(Number.isSafeInteger(input.nextAt)&&input.nextAt>now&&input.nextAt<=now+30*86400000,'约定时间须在未来 30 天内');issue.nextAt=input.nextAt;issue.note=detail;
     event(order,now,'RESCHEDULE','已协商改期',detail);issue.timeline[issue.timeline.length-1].nextAt=input.nextAt;
    }else if(input.resolution==='RESUME'){
-    need(order.status==='PAID','外送订单请登记重新送出或退款');finishIssue(order,now,'RESUME',detail);
+    need(order.status==='PAID','快递配送订单请登记重新送出或退款');finishIssue(order,now,'RESUME',detail);
    }else{
-    need(!pickup&&order.status==='SHIPPED','仅外送中订单可以重新送出');const number=String(input.number||'').trim();need(!number||/^[A-Za-z0-9-]{3,40}$/.test(number),'配送单号请填写 3～40 位字母、数字或横线');
-    if(order.shipping)(f.deliveryHistory ||= []).push(order.shipping);order.shipping={company:'商家自行配送',number,note:detail,at:now};finishIssue(order,now,'REDELIVER',detail);
+    need(!pickup&&order.status==='SHIPPED','仅快递配送中订单可以重新送出');const carrier=String(input.carrier||'');need(Object.prototype.hasOwnProperty.call(carriers,carrier),'请选择快递公司');const number=String(input.number||'').trim();need(/^[A-Za-z0-9-]{6,32}$/.test(number),'快递单号请填写 6～32 位字母、数字或横线');
+    if(order.shipping)(f.deliveryHistory ||= []).push(order.shipping);order.shipping={carrier,company:carriers[carrier],number,note:detail,at:now};finishIssue(order,now,'REDELIVER',detail);
    }
   }else if(action==='merchantRefund'){
    need(input.confirm===true,'请确认整单退款金额和实际可售数量');const items=stockPlan(order,input.items);

@@ -11,6 +11,8 @@
 - [本地备份](BACKUP-RECOVERY.md)、[本地进程恢复](RUNTIME-RECOVERY.md)、[MongoDB 数据规模](DATABASE-SCALE.md)
 - [组件与参考](third-party/README.md)、[素材](../DESIGN-SOURCES.md)、[第三方说明](../THIRD_PARTY_NOTICES.md)
 
+- [快递配送与快递100配置](EXPRESS-DELIVERY.md)
+
 ## 验收记录
 
 最近一轮见 [2026-11-01 双端验收](DUAL-SIDE-ACCEPTANCE-2026-11-01.md)。其他带 ACCEPTANCE、AUDIT 的文件以及模拟说明保留为对应阶段的证据，不是当前部署操作手册。运行环境、测试数量和未完成项应结合记录日期阅读，当前进度统一维护在 STATUS.md。

@@ -1,6 +1,6 @@
 # 奇迹空间宠物咖啡店
 
-微信小程序商城与商家管理后台。买家在小程序浏览商品、下单、选择到店自提或商家外送、查看订单及申请售后；商家通过 Web 后台维护商品、库存、门店信息和订单。
+微信小程序商城与商家管理后台。买家在小程序浏览商品、下单、选择到店自提或快递配送、查看订单及申请售后；商家通过 Web 后台维护商品、库存、门店信息和订单。
 
 当前联调代码位于 `integration/full-stack`。云端使用微信云托管 Node.js 服务和 MySQL，小程序通过 `wx.cloud.callContainer` 访问服务并使用微信身份；本地开发可使用 MongoDB 和独立测试账号。支付支持云托管开放接口及 API v3 直连，实际启用方式由服务端配置决定。
 
@@ -79,3 +79,5 @@ npm test
 默认测试会跳过需要真实数据库的集成项。启用 MongoDB 使用 `PET_MONGO_TEST=1`；启用 MySQL 使用 `PET_MYSQL_TEST=1` 并配置独立测试数据库连接。不要将测试指向经营数据库。
 
 开发规范见 [CONTRIBUTING.md](CONTRIBUTING.md)，接口见 [买家 API](docs/BUYER-API.md)。账号、密钥、个人配置、数据库和调试材料不得提交。第三方组件与图片来源见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) 和 [DESIGN-SOURCES.md](DESIGN-SOURCES.md)。
+
+快递配送需选择承运公司并录入运单号；注册快递100、服务端密钥配置及查询限制见 [快递配送接入](docs/EXPRESS-DELIVERY.md)。

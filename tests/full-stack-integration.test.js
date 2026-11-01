@@ -70,7 +70,7 @@ test('三方联调：商家模板建品与设置 → 小程序外送付款 → �
  f.page.detail(event({id:product.id}));f.page.buy();assert.equal(f.page.data.checkoutTotal,'26.50');f.page.checkout();await idle(f.page);
  const id=f.page.data.selectedOrder?.id;assert.ok(id);assert.equal(f.page.data.selectedOrder.total,2650);
  f.page.action(event({action:'mockPay'}));await idle(f.page);assert.equal(f.page.data.selectedOrder.status,'PAID');
- f.page.onHide();await f.m(`viewOrder(${JSON.stringify(id)})`);f.node('number').value='LOCAL-DELIVERY-01';f.node('delivery-note').value='模拟店员配送';await f.m('ship()');
+ f.page.onHide();await f.m(`viewOrder(${JSON.stringify(id)})`);f.node('carrier').value='shunfeng';f.node('number').value='LOCAL-DELIVERY-01';f.node('delivery-note').value='模拟店员配送';await f.m('ship()');
  f.page.onShow();await idle(f.page);assert.equal(f.page.data.selectedOrder.shipping.number,'LOCAL-DELIVERY-01');assert.equal(f.page.data.selectedOrder.status,'SHIPPED');assert.equal(f.page.data.orders.find(o=>o.id===id).status,'SHIPPED');
  f.page.action(event({action:'confirmReceipt'}));await idle(f.page);assert.equal(f.page.data.selectedOrder.status,'COMPLETED');
  f.page.setData({afterForm:{type:'RETURN_REFUND',reason:'隔离测试退货'}});f.page.action(event({action:'refundRequest'}));await idle(f.page);
@@ -136,8 +136,8 @@ test('三方联调：自提改期后恢复核销、外送失败后再次送出�
   await f.m(`orderAction('pickupRedeem',{code:'${code}'})`);assert.equal((await buyerIssue(f,o.id)).status,'COMPLETED');
  });
  await fixture(async f=>{
-  const o=await issueOrder(f,'DELIVERY');await f.m("orderAction('ship',{number:'SEND001',note:'第一次送出'})");f.node('issue-type').value='DELIVERY_FAILED';f.node('issue-note').value='送达时无人接收，商品已带回';await f.m("submitFulfillment('recordFulfillmentIssue')");assert.equal((await buyerIssue(f,o.id)).statusText,'外送未送达');
-  f.node('issue-resolution').value='REDELIVER';f.node('issue-number').value='SEND002';f.node('issue-note').value='已联系买家并再次送出';await f.m("submitFulfillment('resolveFulfillmentIssue')");
+  const o=await issueOrder(f,'DELIVERY');await f.m("orderAction('ship',{carrier:'shunfeng',number:'SEND001',note:'第一次送出'})");f.node('issue-type').value='DELIVERY_FAILED';f.node('issue-note').value='送达时无人接收，商品已带回';await f.m("submitFulfillment('recordFulfillmentIssue')");assert.equal((await buyerIssue(f,o.id)).statusText,'快递未送达');
+  f.node('issue-resolution').value='REDELIVER';f.node('issue-carrier').value='shunfeng';f.node('issue-number').value='SEND002';f.node('issue-note').value='已联系买家并再次送出';await f.m("submitFulfillment('resolveFulfillmentIssue')");
   const buyer=await buyerIssue(f,o.id);assert.equal(buyer.shipping.number,'SEND002');assert.equal(buyer.fulfillment.deliveryHistory[0].number,'SEND001');f.page.action(event({action:'confirmReceipt'}));await idle(f.page);assert.equal(f.page.data.selectedOrder.status,'COMPLETED');assert.deepEqual(f.errors,[]);
  });
 });

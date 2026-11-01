@@ -312,7 +312,7 @@ test('商家保存多规格商品后买家可选规格下单，商家外送后�
   const address=f.buyer('saveAddress',{name:'测试收件人',phone:'13800000000',detail:'模拟市测试街道 1 号'});
   const order=f.buyer('createOrder',{key:'merchant-flow',fulfillment:'DELIVERY',addressId:address.id,lines:[{productId:product.id,skuId:product.skus[1].id,qty:2}]});
   f.buyer('mockPay',{id:order.id});await f.run("viewOrder('"+order.id+"')");
-  f.node('number').value='SIM-DELIVERY-01';f.node('delivery-note').value='模拟店员配送';
+  f.node('carrier').value='shunfeng';f.node('number').value='SIM-DELIVERY-01';f.node('delivery-note').value='模拟店员配送';
   await f.run('ship()');
   assert.equal(f.buyer('order',{id:order.id}).status,'SHIPPED');
   f.buyer('confirmReceipt',{id:order.id});
@@ -330,7 +330,7 @@ test('订单操作在网络等待期间拒绝重复点击，响应后解除锁�
  let release;const gate=new Promise(r=>release=r);const f=fixture(body=>body.action==='ship'?gate:undefined);
  const a=f.buyer('saveAddress',{name:'模拟',phone:'13800000000',detail:'模拟市 1 号'});
  const o=f.buyer('createOrder',{key:'double-click-shipping',addressId:a.id,lines:[{productId:'toy',skuId:'toy-1',qty:1}]});f.buyer('mockPay',{id:o.id});await f.run("viewOrder('"+o.id+"')");
- const first=f.run("orderAction('ship',{note:'店员外送'})");await f.run("orderAction('ship',{note:'店员外送'})");assert.equal(f.calls.filter(c=>c.action==='ship').length,1);assert.equal(f.run('savingOrder'),true);
+ const first=f.run("orderAction('ship',{carrier:'shunfeng',number:'TEST123456',note:'店员外送'})");await f.run("orderAction('ship',{carrier:'shunfeng',number:'TEST123456',note:'店员外送'})");assert.equal(f.calls.filter(c=>c.action==='ship').length,1);assert.equal(f.run('savingOrder'),true);
  release();await first;assert.equal(f.run('savingOrder'),false);assert.equal(f.buyer('order',{id:o.id}).status,'SHIPPED');
 });
 
