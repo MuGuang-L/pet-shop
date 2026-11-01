@@ -1,7 +1,7 @@
 const test=require('node:test'),assert=require('node:assert/strict'),vm=require('node:vm'),fs=require('node:fs');
 test('买家适配器：HTTPS 联调登录、Bearer 请求、图片路径、不发送角色',async()=>{const storage={},calls=[],config={apiBase:'https://shop.example.test'};const wx={getStorageSync:k=>storage[k],setStorageSync:(k,v)=>storage[k]=v,removeStorageSync:k=>delete storage[k],request:o=>{calls.push(o);o.success({statusCode:200,data:{ok:true,data:o.url.endsWith('/auth/login')?{token:'test-session',identity:{id:'friend',merchant:false}}:{image:'/assets/toy-v2.jpg'}}});}};const c={wx,module:{exports:{}},require:()=>config};vm.runInNewContext(fs.readFileSync(require.resolve('../miniprogram/services/api'),'utf8'),c);const api=c.module.exports;await api.login('friend','test-password');const p=await api.call('catalog');assert.equal(calls.at(-1).header.Authorization,'Bearer test-session');assert.equal(calls.at(-1).data.role,undefined);assert.equal(p.image,'https://shop.example.test/assets/toy-v2.jpg');config.apiBase='https://another.example.test';assert.equal(api.hasSession(),false);config.apiBase='http://public.example';await assert.rejects(api.call('catalog'),/HTTPS/);});
 test('云托管调用保留开发者工具返回的错误码',async()=>{const config={mode:'cloud',cloud:{env:'prod-demo',service:'pet-shop'}},wx={getStorageSync(){},setStorageSync(){},removeStorageSync(){},cloud:{callContainer:o=>o.fail({errMsg:'cloud.callContainer:fail service not found'})}};const c={wx,module:{exports:{}},require:()=>config};vm.runInNewContext(fs.readFileSync(require.resolve('../miniprogram/services/api'),'utf8'),c);await assert.rejects(c.module.exports.call('createOrder'),/cloud\.callContainer:fail service not found/);});
-test('当前买家小程序没有商家界面与商家操作入口，事件处理器完整',()=>{let page;const api={mode:'api',hasSession:()=>false};const context={Page:p=>page=p,require:n=>n.includes('studio')?require('../cloudfunctions/shop/studio'):api};vm.runInNewContext(fs.readFileSync(require.resolve('../miniprogram/pages/shop/index'),'utf8'),context);const xml=fs.readFileSync('miniprogram/pages/shop/index.wxml','utf8');assert.doesNotMatch(xml,/商家工作台|启用本地模拟商家|bindtap="ship"|bindtap="saveProduct"/);assert.equal(page.demoRole,undefined);assert.equal(page.saveProduct,undefined);assert.equal(page.ship,undefined);for(const m of xml.matchAll(/(?:bind|catch)\w+="(\w+)"/g))assert.equal(typeof page[m[1]],'function',m[1]);});
+test('当前买家小程序没有商家界面与商家操作入口，事件处理器完整',()=>{let page;const api={mode:'api',hasSession:()=>false};const context={Page:p=>page=p,require:n=>n.includes('order-display')?require('../miniprogram/services/order-display'):n.includes('studio')?require('../cloudfunctions/shop/studio'):api};vm.runInNewContext(fs.readFileSync(require.resolve('../miniprogram/pages/shop/index'),'utf8'),context);const xml=fs.readFileSync('miniprogram/pages/shop/index.wxml','utf8');assert.doesNotMatch(xml,/商家工作台|启用本地模拟商家|bindtap="ship"|bindtap="saveProduct"/);assert.equal(page.demoRole,undefined);assert.equal(page.saveProduct,undefined);assert.equal(page.ship,undefined);for(const m of xml.matchAll(/(?:bind|catch)\w+="(\w+)"/g))assert.equal(typeof page[m[1]],'function',m[1]);});
 
 test('下单恢复记录按服务地址和账号隔离，401 与 503 不视为确定下单失败',async()=>{
  const storage={},config={apiBase:'https://a.example.test'};let status=200;
@@ -23,7 +23,7 @@ test('云托管支付授权错误解释原因并保留错误码',async()=>{
 
 test('订单资金提示以实际付款渠道为准，云端真实支付不显示模拟退款',()=>{
  for(const mode of ['cloud','api']){
-  const c={Page(){},require:n=>n.includes('studio')?require('../cloudfunctions/shop/studio'):{mode}};
+  const c={Page(){},require:n=>n.includes('order-display')?require('../miniprogram/services/order-display'):n.includes('studio')?require('../cloudfunctions/shop/studio'):{mode}};
   vm.runInNewContext(fs.readFileSync(require.resolve('../miniprogram/pages/shop/index'),'utf8'),c);
   const base={id:'audit',status:'REFUNDING',lines:[],total:1,shippingFee:0,payment:{provider:'WECHAT'},refund:{stage:'WAIT_REFUND'}};
   c.sample=base;let result=vm.runInNewContext('order(sample)',c);
@@ -38,7 +38,7 @@ test('订单资金提示以实际付款渠道为准，云端真实支付不显�
 
 test('订单详情返回保留原入口，普通弹层仅关闭；售后展开状态不跨订单泄漏',()=>{
  let page;let backs=0;
- const context={Page:p=>page=p,require:n=>n.includes('studio')?require('../cloudfunctions/shop/studio'):{mode:'api'},wx:{navigateBack(){backs++;}},getCurrentPages:()=>[{},{}]};
+ const context={Page:p=>page=p,require:n=>n.includes('order-display')?require('../miniprogram/services/order-display'):n.includes('studio')?require('../cloudfunctions/shop/studio'):{mode:'api'},wx:{navigateBack(){backs++;}},getCurrentPages:()=>[{},{}]};
  vm.runInNewContext(fs.readFileSync(require.resolve('../miniprogram/pages/shop/index'),'utf8'),context);
  page.setData=function(values){Object.assign(this.data,values);};
  const sample={id:'one',status:'COMPLETED',lines:[],total:100,shippingFee:0};

@@ -1,6 +1,7 @@
 const api=require('../../services/api');
+const orderDisplay=require('../../services/order-display');
 const statusText={PENDING:'待付款',PAID:'备货中',SHIPPED:'配送中',COMPLETED:'已完成',CANCELLED:'已取消',EXPIRED:'已超时',REFUND_REQUESTED:'售后审核中',REFUNDING:'退款处理中',REFUNDED:'已退款'};
-const display=o=>({...o,statusText:statusText[o.status]||o.status,totalText:(o.total/100).toFixed(2),lines:o.lines.map(line=>({...line,priceText:(line.price/100).toFixed(2),image:line.image||'/assets/empty-v2.jpg'}))});
+const display=o=>({...o,...orderDisplay.card(o),statusText:orderDisplay.card(o).statusText||statusText[o.status]||o.status,totalText:(o.total/100).toFixed(2),lines:o.lines.map(line=>({...line,unitText:(line.price/100).toFixed(2),displayImage:line.image||'/assets/empty-v2.jpg'}))});
 Page({
  data:{orders:[],status:'ALL',filters:[{id:'ALL',name:'全部'},{id:'PENDING',name:'待付款'},{id:'PAID',name:'备货中'},{id:'SHIPPED',name:'配送中'},{id:'COMPLETED',name:'已完成'},{id:'AFTERSALE',name:'售后'}],page:0,pages:0,total:0,busy:false,error:'',loginRequired:false},
  onShow(){return this.load();},
@@ -25,6 +26,7 @@ Page({
   this.setData({status,orders:[],page:0,pages:0,total:0});return this.load();
  },
  more(){if(!this.data.busy&&this.data.page<this.data.pages)return this.load(this.data.page+1,true);},
- openOrder(e){const id=e.currentTarget.dataset.id;if(this.data.orders.some(o=>o.id===id))wx.navigateTo({url:'/pages/shop/index?order_id='+encodeURIComponent(id)});},
+ showOrder(e){return this.openOrder(e);},
+ openOrder(e){const id=e.currentTarget.dataset.id;if(this.data.orders.some(o=>o.id===id))wx.navigateTo({url:'/pages/shop/index?order_id='+encodeURIComponent(id)+(['payment','fulfillment','aftersale'].includes(e.currentTarget.dataset.section)?'&section='+e.currentTarget.dataset.section:'')});},
  shop(){wx.reLaunch({url:'/pages/shop/index'});}
 });
