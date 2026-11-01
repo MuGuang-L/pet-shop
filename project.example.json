@@ -8,7 +8,7 @@
   "setting": {
     "es6": true,
     "enhance": true,
-    "minified": false,
+    "minified": true,
     "urlCheck": true,
     "postcss": false,
     "compileWorklet": false,
@@ -30,7 +30,24 @@
   },
   "simulatorPluginLibVersion": {},
   "packOptions": {
-    "ignore": [],
+    "ignore": [
+      {
+        "type": "folder",
+        "value": "node_modules"
+      },
+      {
+        "type": "file",
+        "value": "package.json"
+      },
+      {
+        "type": "file",
+        "value": "package-lock.json"
+      },
+      {
+        "type": "file",
+        "value": "config.example.js"
+      }
+    ],
     "include": []
   },
   "editorSetting": {}

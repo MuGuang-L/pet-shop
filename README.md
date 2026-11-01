@@ -58,6 +58,8 @@ database 和 backend 均为 healthy 后，打开商家 Web；`http://127.0.0.1:4
 
 先执行 `npm ci --prefix miniprogram`，再在微信开发者工具中选择「工具 → 构建 npm」，然后编译。订单中心与个人中心使用 TDesign 小程序组件；每次更新依赖后需重新构建 npm，生成的 `miniprogram_npm` 不提交仓库。组件及参考项目说明见 [界面参考](docs/third-party/README.md)。
 
+小程序使用压缩后的发布图片，高清原稿保留在 `source-assets/`。更新原稿后执行 `node scripts/optimize-miniapp-assets.js` 重新生成：横幅最大宽度 960px，其余图片 640px，保持比例、不放大。上传前保持 `project.config.json` 的 `setting.minified: true`；`packOptions.ignore` 按 `project.example.json` 排除原始 `node_modules` 和包管理文件，但保留构建后的 `miniprogram_npm`。已有项目的本机配置不会被 setup 自动覆盖，需要同步这些打包选项。最终包体以开发工具预览/上传结果为准。
+
 完成 `npm ci` 和 `npm run setup` 后，用微信开发者工具导入仓库根目录，选择有权限使用的 AppID 或工具支持的测试模式。AppID 保存在本机 `project.config.json`，不用改公共模板。
 
 在同一台电脑的模拟器中，`miniprogram/config.local.js` 默认地址即可使用。开发工具进行本地 HTTP 联调时，需在本地设置中关闭合法域名校验；这只适用于开发调试，不代表真机或上线域名已配置好。使用本机生成的 buyer 账号登录。首次打开尚未初始化的 checkout 会缺少 config.local 模块，运行 setup 后重新编译即可。
