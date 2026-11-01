@@ -1,6 +1,7 @@
 'use strict';
 const config=require('../config');const key='pet-shop-session-v2';
 const cloud=config.mode==='cloud';
+let cloudIdentity=null;
 function base(){const url=(config.apiBase||'http://127.0.0.1:4173').replace(/\/$/,'');if(!/^http:\/\/(127\.0\.0\.1|localhost):4173$/.test(url)&&!/^https:\/\/[a-zA-Z0-9.-]+(?::\d+)?$/.test(url))throw Error('API 地址须为本机 4173 端口或 HTTPS 域名');return url;}
 function assetOrigin(){const value=String(config.cloud&&config.cloud.assetBase||'').replace(/\/$/,'');return /^https:\/\/[a-zA-Z0-9.-]+(?::\d+)?$/.test(value)?value:'';}
 function session(){const s=wx.getStorageSync(key);return s&&s.apiBase===base()?s:null;}
@@ -11,7 +12,7 @@ const paymentMessages={NOAUTH:'商家微信支付尚未获得授权，请联系�
 const readActions=new Set(['catalog','storefront','homeContent','identity','addresses','orders','ordersPage','order','orderByTradeNo','tracking','shopSettings','quoteOrder']);
 function accept(endpoint,token,r,resolve,reject){
  if(endpoint==='/auth/login'&&[400,429,503].includes(r.statusCode)&&Object.prototype.hasOwnProperty.call(loginMessages,r.data?.error))return reject(Object.assign(Error(loginMessages[r.data.error]),{code:r.data.error,definitive:true}));
- if(r.statusCode===401){if(!cloud&&session()?.token===token)wx.removeStorageSync(key);return reject(Object.assign(Error('AUTH_REQUIRED'),{code:'AUTH_REQUIRED',definitive:false}));}
+ if(r.statusCode===401){if(cloud)cloudIdentity=null;if(!cloud&&session()?.token===token)wx.removeStorageSync(key);return reject(Object.assign(Error('AUTH_REQUIRED'),{code:'AUTH_REQUIRED',definitive:false}));}
  if([408,429,500,502,503,504].includes(r.statusCode)||!r.data||typeof r.data.ok!=='boolean')return reject(Object.assign(Error('服务暂时不可用，请稍后重试'),{retryable:true,definitive:false}));
  if(r.statusCode!==200||!r.data.ok){const code=r.data.error;const error=Error(Object.prototype.hasOwnProperty.call(addressMessages,code)?addressMessages[code]:Object.prototype.hasOwnProperty.call(paymentMessages,code)?paymentMessages[code]:code||'服务请求失败');error.code=code;error.definitive=r.statusCode===400&&r.data.retryable!==true;return reject(error);}
  if(!Object.prototype.hasOwnProperty.call(r.data,'data'))return reject(Object.assign(Error('服务响应不完整，请稍后重试'),{retryable:true,definitive:false}));
@@ -36,9 +37,9 @@ async function request(endpoint,data){
  }
 }
 async function login(username,password){if(cloud)throw Error('云托管使用微信身份，不需要账号');const out=await request('/auth/login',{username,password});if(out.identity.merchant)throw Error('小程序请使用买家账号，商家账号用于网页后台');const previous=session();if(previous?.id!==out.identity.id)wx.removeStorageSync('pet-cart');wx.setStorageSync(key,{apiBase:base(),token:out.token,id:out.identity.id});return out.identity;}
-async function logout(){if(cloud){wx.removeStorageSync('pet-cart');return;}try{await request('/auth/logout',{});}finally{wx.removeStorageSync(key);wx.removeStorageSync('pet-cart');}}
-async function call(action,input={}){return paths(await request('/api',{action,input}));}
+async function logout(){if(cloud){cloudIdentity=null;wx.removeStorageSync('pet-cart');return;}try{await request('/auth/logout',{});}finally{wx.removeStorageSync(key);wx.removeStorageSync('pet-cart');}}
+async function call(action,input={}){const result=await request('/api',{action,input});if(cloud&&action==='identity')cloudIdentity=typeof result?.id==='string'&&result.id?result.id:null;return paths(result);}
 function requestPayment(params){return new Promise((resolve,reject)=>{if(!params){resolve();return;}wx.requestPayment({timeStamp:String(params.timeStamp),nonceStr:params.nonceStr,package:params.package,signType:params.signType||'RSA',paySign:params.paySign,success:resolve,fail:err=>reject(Error(err&&err.errMsg&&err.errMsg.includes('cancel')?'已取消支付':(err&&err.errMsg)||'支付未完成'))});});}
-function checkoutScope(){const identity=cloud?'cloud':session()?.id;if(!identity)throw Error('AUTH_REQUIRED');return 'pet-checkout-v1:'+JSON.stringify([cloud?String(config.cloud&&config.cloud.env||''):base(),identity]);}
+function checkoutScope(){const identity=cloud?cloudIdentity:session()?.id;if(!identity)throw Error('AUTH_REQUIRED');return 'pet-checkout-v1:'+JSON.stringify([cloud?JSON.stringify([config.cloud.env,config.cloud.service]):base(),identity]);}
 function getSupport(settings){const source=config.buyerSupport||{};const configured=settings&&settings.revision>0;const phone=String(configured?settings.store.phone:source.phone||'').trim();return {name:'联系商家',phone:/^(?:1\d{10}|0\d{2,3}-?\d{7,8}|400-?\d{3}-?\d{4})$/.test(phone)?phone:'',hours:configured?settings.hoursText:String(source.hours||'')};}
 module.exports={getSupport,call,login,logout,requestPayment,checkoutScope,hasSession:()=>cloud||!!session()?.token,mode:cloud?'cloud':'api'};

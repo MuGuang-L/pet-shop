@@ -49,3 +49,15 @@ test('订单详情返回保留原入口，普通弹层仅关闭；售后展开�
  page.closeOrder();assert.equal(page.data.selectedOrder,null);assert.equal(backs,0);
  page.orderDetailEntry=true;page.selectOrder(sample);page.closeOrder();assert.equal(backs,1);
 });
+
+test('云端恢复缓存按可信微信身份隔离，旧共享缓存和失效身份不能使用',async()=>{
+ const storage={},config={mode:'cloud',cloud:{env:'prod-a',service:'shop'}};let id='wx:alice',status=200;
+ const wx={getStorageSync:k=>storage[k],setStorageSync:(k,v)=>storage[k]=v,removeStorageSync:k=>delete storage[k],cloud:{callContainer:o=>o.success({statusCode:status,data:status===200?{ok:true,data:{id,merchant:false}}:{ok:false,error:'AUTH_REQUIRED'}})}};
+ const c={wx,module:{exports:{}},require:()=>config};vm.runInNewContext(fs.readFileSync(require.resolve('../miniprogram/services/api'),'utf8'),c);const api=c.module.exports;
+ assert.throws(()=>api.checkoutScope(),/AUTH_REQUIRED/);
+ await api.call('identity');const alice=api.checkoutScope();storage[alice]={completed:{order:{id:'alice-order'}}};
+ assert.notEqual(alice,'pet-checkout-v1:'+JSON.stringify(['prod-a','cloud']));
+ id='wx:bob';await api.call('identity');const bob=api.checkoutScope();assert.notEqual(bob,alice);assert.equal(storage[bob],undefined);
+ id='wx:alice';await api.call('identity');assert.equal(api.checkoutScope(),alice);
+ status=401;await assert.rejects(api.call('ordersPage'),/AUTH_REQUIRED/);assert.throws(()=>api.checkoutScope(),/AUTH_REQUIRED/);
+});
