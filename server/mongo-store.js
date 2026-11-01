@@ -2,6 +2,7 @@
 const {MongoClient}=require('mongodb');
 const {seed,execute,orderQuery,settleVerifiedPayment,settleVerifiedRefund}=require('../cloudfunctions/shop/domain');
 const inventory=require('../cloudfunctions/shop/inventory');
+const orderNumber=require('../cloudfunctions/shop/order-number');
 const {loadScope,stateFrom}=require('./mongo-scope');
 const {randomUUID,createHash}=require('node:crypto');
 const collections=['products','orders','address_books','idempotency_keys','payment_events','stock_movements'];
@@ -81,8 +82,8 @@ class MongoStore{
   if(await this.db.collection('orders').findOne({status:'PENDING',expiresAt:{$lte:now}},{projection:{_id:1}}))await this.execute({id:'system',merchant:true},'expire',{},options);
   if(args.status!=='ALL')filter.status=args.status==='AFTERSALE'?{$in:['REFUND_REQUESTED','REFUNDING','REFUNDED']}:args.status;
   if(args.fulfillment!=='ALL')filter['value.fulfillment.type']=args.fulfillment==='DELIVERY'?{$ne:'PICKUP'}:'PICKUP';
-  if(args.q){const literal=args.q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');filter.$or=[{_id:{$regex:literal,$options:'i'}},{'value.lines.name':{$regex:literal,$options:'i'}}];}
-  const session=this.client.startSession();let result;try{await transaction(session,async()=>{const col=this.db.collection('orders');const total=await col.countDocuments(filter,{session}),pages=Math.max(1,Math.ceil(total/args.pageSize)),page=Math.min(args.page,pages);const rows=await this.read('orders').find(filter,{session}).sort({createdAt:-1,_id:-1}).skip((page-1)*args.pageSize).limit(args.pageSize).toArray();const paidCount=await col.countDocuments({...scope,status:'PAID'},{session});result={items:rows.map(x=>x.value),page,pageSize:args.pageSize,total,pages,paidCount};},{readConcern:{level:'snapshot'}});return result;}finally{await session.endSession();}
+  if(args.q){const literal=args.q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');filter.$or=[{_id:{$regex:literal,$options:'i'}},{'value.orderNo':{$regex:literal,$options:'i'}},{'value.lines.name':{$regex:literal,$options:'i'}}];const legacy=orderNumber.legacyQuery(args.q);if(legacy)filter.$or.push({_id:legacy.id,'value.orderNo':{$exists:false}});}
+  const session=this.client.startSession();let result;try{await transaction(session,async()=>{const col=this.db.collection('orders');const total=await col.countDocuments(filter,{session}),pages=Math.max(1,Math.ceil(total/args.pageSize)),page=Math.min(args.page,pages);const rows=await this.read('orders').find(filter,{session}).sort({createdAt:-1,_id:-1}).skip((page-1)*args.pageSize).limit(args.pageSize).toArray();const paidCount=await col.countDocuments({...scope,status:'PAID'},{session});result={items:rows.map(x=>orderNumber.present(x.value)),page,pageSize:args.pageSize,total,pages,paidCount};},{readConcern:{level:'snapshot'}});return result;}finally{await session.endSession();}
  }
  async stockHistory(actor,input){
   if(!actor||typeof actor.id!=='string'||!actor.id)throw Error('AUTH_REQUIRED');

@@ -14,7 +14,7 @@ Page({
  async load(page=1,append=false){
   if(this.data.busy)return;
   if(!api.hasSession()){this.setData({orders:[],loginRequired:true,error:''});return;}
-  this.setData({busy:true,error:'',loginRequired:false});
+  this.setData({busy:true,error:'',loginRequired:false,...(!append?{orders:[],page:0,pages:0,total:0}:{})});
   try{
    const result=await api.call('ordersPage',{page,pageSize:10,status:this.data.status,fulfillment:this.data.fulfillment,q:this.data.query.trim()});
    const orders=result.items.map(display);

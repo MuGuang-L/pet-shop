@@ -93,7 +93,7 @@ class Auth{
  }
 }
 const buyerActions=new Set(['catalog','storefront','homeContent','identity','addresses','saveAddress','deleteAddress','createOrder','orders','ordersPage','order','cancel','payment','mockPay','confirmReceipt','tracking','refundRequest','refundWithdraw','returnShip']);
-const merchantActions=new Set(['catalog','storefront','homeContent','identity','merchantProducts','merchantOrders','merchantOrdersPage','order','tracking','saveProduct','saveStorefront','saveHomeContent','ship','pickupReady','pickupRedeem','refundReview','returnInspect','refundFail','mockRefund']);
+const merchantActions=new Set(['catalog','storefront','homeContent','identity','merchantProducts','merchantOrders','merchantOrdersPage','order','tracking','saveProduct','saveStorefront','saveHomeContent','ship','pickupReady','pickupRedeem','pickupComplete','refundReview','returnInspect','refundFail','mockRefund']);
 for(const a of ['survey','submitSurvey'])buyerActions.add(a);
 for(const a of ['surveyAdmin','saveSurvey'])merchantActions.add(a);
 buyerActions.add('shopSettings');buyerActions.add('quoteOrder');

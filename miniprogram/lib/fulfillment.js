@@ -69,7 +69,7 @@ function handle(state,actor,action,input,{now}){
 }
 function trackingEvents(order){
  const f=order.fulfillment||{},events=[];
- if(f.type==='PICKUP'){if(f.readyAt)events.push({time:f.readyAt,text:'商品已备好，可到店自提'});if(f.redeemedAt)events.push({time:f.redeemedAt,text:'已凭提货码核销'});}
+ if(f.type==='PICKUP'){if(f.readyAt)events.push({time:f.readyAt,text:'商品已备好，可到店自提'});if(f.redeemedAt)events.push({time:f.redeemedAt,text:'商家已确认提货'});}
  else [...(f.deliveryHistory||[]),...(order.shipping?[order.shipping]:[])].forEach((s,i)=>events.push({time:s.at,text:(i?'商家已补发快递':'商家已登记发货')+(s.number?' · '+s.number:'')+(s.note?' · '+s.note:'')}));
  for(const issue of [...(f.issueHistory||[]),...(f.issue?[f.issue]:[])])for(const e of issue.timeline||[])if(e.action!=='REDELIVER')events.push({time:e.at,text:e.label+' · '+e.detail,...(e.nextAt?{nextAt:e.nextAt}:{})});
  if(order.status==='COMPLETED'&&f.type!=='PICKUP')events.push({time:order.updatedAt,text:'买家已确认收货'});

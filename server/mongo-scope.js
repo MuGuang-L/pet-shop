@@ -3,7 +3,7 @@ const {randomInt}=require('node:crypto');
 const aftersales=require('../cloudfunctions/shop/aftersales');
 const fulfillment=require('../cloudfunctions/shop/fulfillment');
 const EXPIRY_BATCH=100;
-const orderActions=new Set(['order','cancel','payment','mockPay','confirmReceipt','tracking','ship','pickupReady','pickupRedeem',...aftersales.actions,...fulfillment.actions]);
+const orderActions=new Set(['order','cancel','payment','mockPay','confirmReceipt','tracking','ship','pickupReady','pickupRedeem','pickupComplete',...aftersales.actions,...fulfillment.actions]);
 const activePickup=['PENDING','PAID','REFUND_REQUESTED','REFUNDING'];
 const strings=values=>[...new Set(values.filter(v=>typeof v==='string'&&v.length<=100))];
 function requestKey(actor,action,input){
@@ -40,6 +40,10 @@ async function loadScope(store,session,actor,action,input,options,hash){
   const row=await db.collection('address_books').findOne({_id:actor.id},{session});if(row)docs.address_books.push(row);
  }
  const context={};
+ if(action==='createOrder'){
+  const numbering=require('../cloudfunctions/shop/order-number'),date=numbering.day(now);
+  if(meta.value.orderCounters?.[date]===undefined){const bounds=numbering.bounds(date);const rows=await store.read('orders').aggregate([{$match:{createdAt:{$gte:bounds.start,$lt:bounds.end}}},{$project:{n:{$convert:{input:{$substrBytes:[{$ifNull:['$value.orderNo','$_id']},1,32]},to:'int',onError:0,onNull:0}}}},{$group:{_id:null,max:{$max:'$n'}}}],{session}).toArray();context.orderNumberBase=rows[0]?.max||0;}
+ }
  if(['saveProduct','adjustStock','returnInspect','mockRefund'].includes(action)&&productIds.length){
   // Aggregate only outstanding reservations for the affected products. Loaded
   // orders are excluded; the domain adds their current in-transaction values.

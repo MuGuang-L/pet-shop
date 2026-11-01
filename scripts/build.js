@@ -15,3 +15,5 @@ fs.copyFileSync(path.join(root,'cloudfunctions/shop/inventory.js'),path.join(roo
 fs.copyFileSync(path.join(root,'cloudfunctions/shop/fulfillment.js'),path.join(root,'miniprogram/lib/fulfillment.js'));
 
 fs.copyFileSync(path.join(root,'cloudfunctions/shop/survey.js'),path.join(root,'miniprogram/lib/survey.js'));
+
+fs.copyFileSync(path.join(root,'cloudfunctions/shop/order-number.js'),path.join(root,'miniprogram/lib/order-number.js'));

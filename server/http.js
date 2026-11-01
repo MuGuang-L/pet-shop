@@ -6,7 +6,7 @@ function createServer(store,{auth=new Auth(),publicOrigin=process.env.PUBLIC_ORI
  if(publicOrigin&&(!/^https:\/\/[a-zA-Z0-9.-]+(?::\d+)?$/.test(publicOrigin)))throw Error('PUBLIC_ORIGIN must be an HTTPS origin without path');
  const gateway=createWechat({settings:wechat,store,auth,fetch,now:wechat?.now});
  const logistics=require('./logistics').createLogistics({store,env:logisticsEnv,fetch});
- const server=http.createServer(async(req,res)=>{let endActivity=()=>{};try{const send=(status,data)=>{if(res.destroyed||res.writableEnded)return;res.writeHead(status,{'Content-Type':'application/json; charset=utf-8'});res.end(JSON.stringify(data));};res.setHeader('Cache-Control','no-store');res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('X-Frame-Options','DENY');res.setHeader('Referrer-Policy','no-referrer');
+ const server=http.createServer(async(req,res)=>{let endActivity=()=>{};try{const send=(status,data)=>{if(res.destroyed||res.writableEnded)return;res.writeHead(status,{'Content-Type':'application/json; charset=utf-8'});res.end(JSON.stringify(require('../cloudfunctions/shop/order-number').present(data)));};res.setHeader('Cache-Control','no-store');res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('X-Frame-Options','DENY');res.setHeader('Referrer-Policy','no-referrer');
  const origin=req.headers.origin,allowed=[publicOrigin,'http://127.0.0.1:4173','http://localhost:4173'].filter(Boolean);
  if(origin&&!allowed.includes(origin))return send(403,{ok:false,error:'ORIGIN_NOT_ALLOWED'});
  if(origin){res.setHeader('Access-Control-Allow-Origin',origin);res.setHeader('Access-Control-Allow-Credentials','true');res.setHeader('Vary','Origin');}

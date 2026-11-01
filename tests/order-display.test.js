@@ -3,7 +3,7 @@ const {primary}=require('../miniprogram/services/order-display');
 test('订单卡片动作覆盖付款、外送、自提和售后，全部只提供详情导航',()=>{
  assert.deepEqual(primary({status:'PENDING'}),{label:'去付款',section:'payment'});
  assert.deepEqual(primary({status:'SHIPPED'}),{label:'查看配送',section:'fulfillment'});
- assert.equal(primary({status:'PAID',fulfillment:{type:'PICKUP',readyAt:1}}).label,'查看提货码');
+ assert.equal(primary({status:'PAID',fulfillment:{type:'PICKUP',readyAt:1}}).label,'出示订单');
  assert.equal(primary({status:'PAID',fulfillment:{type:'PICKUP'}}).label,'查看备货');
  assert.equal(primary({status:'REFUNDING',refund:{stage:'WAIT_REFUND'}}).section,'aftersale');
  for(const status of ['COMPLETED','CANCELLED','EXPIRED'])assert.equal(primary({status}).section,'overview');
