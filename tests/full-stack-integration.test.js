@@ -86,7 +86,9 @@ test('三方联调：商家模板建品与设置 → 小程序外送付款 → �
 test('三方联调：立即购买丢失响应后重开恢复，不扣原购物车，自提核销与取消释放一致',options,async()=>fixture(async f=>{
  const p=f.page;p.setData({cart:[{productId:'toy',skuId:'toy-1',qty:2}],deliveryMode:'PICKUP',pickupContact:{name:'模拟提货人',phone:'13800000000'}});p.cartTotal();p.detail(event({id:'toy'}));p.buy();f.drop();p.checkout();await idle(p);
  assert.equal((await f.store.snapshot()).orders.length,1);assert.equal(p.data.cart[0].qty,2);
- f.errors.length=0;f.restart().onLoad();await idle(f.page);const o=f.page.data.selectedOrder;assert.ok(o);assert.equal(f.page.data.cart[0].qty,2);
+ f.errors.length=0;f.restart().onLoad();await idle(f.page);assert.ok(f.page.data.selectedOrder==null);assert.equal(f.page.data.tab,'catalog');assert.equal(f.page.data.cart[0].qty,2);
+ const recovered=await f.api.call('ordersPage');assert.equal(recovered.total,1);const o=recovered.items[0];assert.equal(f.storage[f.api.checkoutScope()],null);
+ f.page.showOrder(event({id:o.id}));await idle(f.page);assert.equal(f.page.data.selectedOrder.id,o.id);
  const creates=f.calls.filter(c=>c.action==='createOrder');assert.equal(creates.length,2);assert.equal(creates[0].input.key,creates[1].input.key);
  f.page.action(event({action:'mockPay'}));await idle(f.page);await f.m(`viewOrder(${JSON.stringify(o.id)})`);await f.m("orderAction('pickupReady')");
  f.page.refreshOrder();await idle(f.page);assert.ok(f.page.data.selectedOrder.fulfillment.readyAt);
