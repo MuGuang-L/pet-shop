@@ -20,7 +20,7 @@ async function loadScope(store,session,actor,action,input,options,hash){
  const db=store.db,meta=await db.collection('shop_meta').findOne({_id:'settings'},{session});
  if(!meta)throw Error('DATABASE_NOT_INITIALIZED');
  const docs={products:[],orders:[],address_books:[],idempotency_keys:[],payment_events:[],stock_movements:[]},now=options.now??Date.now();
- const key=requestKey(actor,action,input);
+ const key=action==='survey'?require('../cloudfunctions/shop/survey').responseKey(meta.value.surveys?.at(-1)?.id,actor.id):action==='submitSurvey'?require('../cloudfunctions/shop/survey').responseKey(input.id,actor.id):requestKey(actor,action,input);
  if(key){const row=await db.collection('idempotency_keys').findOne({_id:hash(key)},{session});if(row)docs.idempotency_keys.push(row);}
  // A request and each timer tick expire at most one batch. The exact requested
  // order is also loaded, so an expired order can never be paid between batches.

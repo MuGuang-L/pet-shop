@@ -26,7 +26,7 @@
       <button data-section="orders" onclick="show('orders')">订单</button>
       <button data-section="products" onclick="show('products')">商品</button>
       <button data-section="store" onclick="show('store')">店铺页面</button>
-      <button data-section="settings" onclick="show('settings')">经营设置</button>
+      <button data-section="survey" onclick="show('survey')">反馈问卷</button><button data-section="settings" onclick="show('settings')">经营设置</button>
     </nav>
     <div class="sidebar-foot"><span id="payment-mode-title">支付状态待核实</span><small id="payment-mode-note">操作前请核对订单支付方式</small></div>
   </aside>
@@ -44,6 +44,6 @@
   <p id="discard-description">这次编辑的内容尚未保存。继续编辑可以保留当前填写的内容。</p>
   <div class="discard-actions"><button id="discard-cancel" autofocus onclick="resolveDiscard(false)">继续编辑</button><button id="discard-confirm" class="primary" onclick="resolveDiscard(true)">放弃修改</button></div>
 </dialog>
-<script src="/studio.js"></script><script src="/admin/alerts.js"></script><script src="/admin/app.js"></script><script src="/admin/settings.js"></script>
+<script src="/studio.js"></script><script src="/admin/alerts.js"></script><script src="/admin/app.js"></script><script src="/admin/settings.js"></script><script src="/admin/survey.js"></script>
 </body>
 </html>

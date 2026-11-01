@@ -4,6 +4,7 @@ const aftersales = require('./aftersales');
 const shopSettings = require('./shop-settings');
 const inventory = require('./inventory');
 const fulfillment = require('./fulfillment');
+const survey = require('./survey');
 function validImage(image,mock){const bundled=studio.assets.some(a=>a.src===image);need(image.length<=1024&&(!image||bundled||/^(cloud:\/\/|wxfile:\/\/|http:\/\/(tmp|usr|store)\/|\/uploads\/[a-f0-9-]+\.(png|jpg)$)/.test(image)),'IMAGE_PATH');need(mock===true||!image||bundled||image.startsWith('cloud://'),'CLOUD_IMAGE_REQUIRED');return image;}
 const clone = x => JSON.parse(JSON.stringify(x));
 const fail = (code) => { throw new Error(code); };
@@ -67,6 +68,7 @@ function execute(state,actor,action,input={},options={}) {
   const capacityReserved=(state,productId,skuId)=>reservedStock(state,productId,skuId)+(options.reservations?.[JSON.stringify([productId,skuId])]||0);
   expire(s,now);
   const owned=()=>{const o=s.orders.find(o=>o.id===input.id);need(o,'ORDER_NOT_FOUND');need(o.userId===actor.id || actor.merchant===true,'FORBIDDEN');return o;};
+  if(survey.actions.has(action))return {state:s,result:clone(survey.handle(s,actor,action,input,{now}))};
   if(fulfillment.actions.has(action))return {state:s,result:clone(fulfillment.handle(s,actor,action,input,{now}))};
   if(aftersales.actions.has(action)){const result=aftersales.handle(s,actor,action,input,{...options,now},{release,address,reservedStock:capacityReserved});return {state:s,result:clone(result)};}
   if(inventory.actions.has(action))return {state:s,result:clone(inventory.handle(s,actor,action,input,{now,reservedStock:capacityReserved}))};

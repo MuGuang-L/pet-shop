@@ -94,6 +94,8 @@ class Auth{
 }
 const buyerActions=new Set(['catalog','storefront','homeContent','identity','addresses','saveAddress','deleteAddress','createOrder','orders','ordersPage','order','cancel','payment','mockPay','confirmReceipt','tracking','refundRequest','refundWithdraw','returnShip']);
 const merchantActions=new Set(['catalog','storefront','homeContent','identity','merchantProducts','merchantOrders','merchantOrdersPage','order','tracking','saveProduct','saveStorefront','saveHomeContent','ship','pickupReady','pickupRedeem','refundReview','returnInspect','refundFail','mockRefund']);
+for(const a of ['survey','submitSurvey'])buyerActions.add(a);
+for(const a of ['surveyAdmin','saveSurvey'])merchantActions.add(a);
 buyerActions.add('shopSettings');buyerActions.add('quoteOrder');
 for(const a of ['recordFulfillmentIssue','resolveFulfillmentIssue','merchantRefund'])merchantActions.add(a);
 merchantActions.add('adjustStock');merchantActions.add('stockHistory');

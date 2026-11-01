@@ -11,7 +11,7 @@ const art=p=>p.image||'/assets/'+(['food','toy','care'].includes(p.id||p.product
 const homeFields=[['headline','首页大标题',24],['subtitle','首页副标题',40],['featuredTitle','精选栏目标题',18],['featuredIntro','精选栏目说明',60],['newTitle','上新栏目标题',18]];
 
 // Only repeat reads. An interrupted write may already have committed.
-const readActions=new Set(['stockHistory','catalog','storefront','homeContent','identity','merchantProducts','merchantOrders','merchantOrdersPage','order','tracking','shopSettings','quoteOrder']);
+const readActions=new Set(['surveyAdmin','stockHistory','catalog','storefront','homeContent','identity','merchantProducts','merchantOrders','merchantOrdersPage','order','tracking','shopSettings','quoteOrder']);
 const requestMessages={STOCK_REQUEST_CONFLICT:'该提交编号已用于另一笔调整，请核对记录后再操作。',INVALID_STOCK_TYPE:'请选择入库、盘点或报损。',INVALID_STOCK_QUANTITY:'数量须为有效整数；盘点可填 0，入库和报损须大于 0。',STOCK_REASON_REQUIRED:'请填写调整原因，最多 200 字。',INSUFFICIENT_AVAILABLE_STOCK:'报损数量超过可售库存，请核对已被订单占用的商品。',STOCK_CAPACITY_EXCEEDED:'可售库存加订单预留数量不能超过 100000 件。',CREATE_REQUEST_CONFLICT:'上次新增可能已保存。请先关闭编辑并刷新商品列表核对，不要改动原请求重复新增。',AUTH_REQUIRED:'请先登录',FORBIDDEN:'此账号没有商家权限',INVALID_CREDENTIALS:'账号或密码不正确',LOGIN_RATE_LIMIT:'登录尝试过多，请一分钟后再试',LOGIN_BUSY:'当前登录人数较多，请稍后再试',PRODUCT_REVISION_CONFLICT:'商品或库存已变化，本次未保存。请保留需要的编辑内容，重新打开商品后核对库存再保存。',PRODUCT_NAME:'请填写商品名称（最多 80 字）',INVALID_STOCK:'库存须为 0 到 100000 的整数',SKU_NAME:'请填写每个规格的名称',INVALID_PRICE:'请检查售价，金额须大于 0 且最多两位小数',RESERVED_SKU_CANNOT_REMOVE:'该规格仍有未结束订单，请保留原规格',INVALID_STATE:'订单状态已变化，请刷新后重试'};
 async function requestOnce(url,body){
   const controller=new AbortController();let timer;
@@ -56,7 +56,7 @@ async function show(next=tab){
   tab=next;const revision=++viewRevision;
   $('error').style.display='none';$('notice').hidden=true;
   document.querySelectorAll('[data-section]').forEach(n=>{n.classList.toggle('active',n.dataset.section===tab);n.setAttribute('aria-current',n.dataset.section===tab?'page':'false');});
-  const titles={settings:['经营设置','设置门店信息、营业时间、自提与快递配送。'],orders:['订单','处理备货、自提、快递配送及售后。'],products:['商品','管理商品信息、规格与可售库存。'],store:['店铺页面','管理小程序首页图片与内容。']};
+  const titles={survey:['反馈问卷','设置自愿填写的选择题，查看各版本统计。'],settings:['经营设置','设置门店信息、营业时间、自提与快递配送。'],orders:['订单','处理备货、自提、快递配送及售后。'],products:['商品','管理商品信息、规格与可售库存。'],store:['店铺页面','管理小程序首页图片与内容。']};
   $('section-title').textContent=titles[tab][0];$('section-note').textContent=titles[tab][1];
   $('app').setAttribute('aria-busy','true');
   $('app').innerHTML='<div class="loading-state" role="status"><span class="loading-dot"></span>正在读取店铺数据…</div>';
@@ -64,7 +64,7 @@ async function show(next=tab){
     const [visuals,content,data,orders]=await Promise.all([
       tab==='store'?api('storefront'):Promise.resolve(storefront),
       tab==='store'?api('homeContent'):Promise.resolve(homeContent),
-      tab==='orders'&&orderQueue==='all'?api('merchantOrdersPage',{q:orderSearch,status:orderStatus,page:orderPageNumber,fulfillment:fulfillmentFilter}):tab==='products'?api('merchantProducts'):tab==='settings'?api('shopSettings'):Promise.resolve(null),
+      tab==='orders'&&orderQueue==='all'?api('merchantOrdersPage',{q:orderSearch,status:orderStatus,page:orderPageNumber,fulfillment:fulfillmentFilter}):tab==='products'?api('merchantProducts'):tab==='settings'?api('shopSettings'):tab==='survey'?api('surveyAdmin'):Promise.resolve(null),
       tab==='orders'?api('merchantOrders'):Promise.resolve([])
     ]);
     if(revision!==viewRevision)return;
@@ -72,6 +72,7 @@ async function show(next=tab){
     if(tab==='orders')$('app').innerHTML=pickupLookupForm()+orderTasks(orders)+orderPageHtml(orderQueue==='all'?data:taskOrderPage(orders,orderQueue,{q:orderSearch,status:orderStatus,page:orderPageNumber,fulfillment:fulfillmentFilter}));
     if(tab==='products'){adminProducts=data;$('app').innerHTML=productsPage();renderProductResults();}
     if(tab==='store')$('app').innerHTML=storePage();
+    if(tab==='survey')$('app').innerHTML=surveyPage(data);
     if(tab==='settings')$('app').innerHTML=settingsPage(data);
   }catch(e){if(revision!==viewRevision)return;error(e);$('app').innerHTML='<div class="empty-state"><span class="service-icon">'+lineIcon('box')+'</span><h3>暂时没能读取数据</h3><p>请检查网络连接后重试，未提交的经营数据不会被修改。</p><button onclick="show()">重新加载</button></div>';}
   finally{if(revision===viewRevision)$('app').setAttribute('aria-busy','false');}
