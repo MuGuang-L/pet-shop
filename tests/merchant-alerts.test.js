@@ -30,3 +30,5 @@ test('会话过期停止提醒，旧账号迟到的401不关闭新账号',async(
  const f=fixture();let reject;f.read(()=>new Promise((_,r)=>reject=r));f.service.start('old');const oldReject=reject;f.read(async()=>({pages:1,items:[]}));f.service.start('new');await settle();oldReject(Object.assign(Error('expired'),{status:401}));await settle();assert.equal(f.expired(),0);
  f.read(async()=>{throw Object.assign(Error('expired'),{status:401});});await f.service.poll();assert.equal(f.expired(),1);assert.equal(f.timers.size,0);assert.equal(f.frames.at(-1).active,false);
 });
+
+test('处理后立即减少待办，迟到轮询不能恢复已处理订单',async()=>{const f=fixture();f.set({pages:1,items:[order('one'),order('two')]});f.service.start('owner');await settle();let finish;f.read(()=>new Promise(r=>finish=r));const poll=f.service.poll();f.service.handled('one');assert.deepEqual(f.frames.at(-1).orders.map(o=>o.id),['two']);finish({pages:1,items:[order('one'),order('two')]});await poll;assert.deepEqual(f.frames.at(-1).orders.map(o=>o.id),['two']);f.service.stop();});

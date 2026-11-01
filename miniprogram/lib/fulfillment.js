@@ -38,8 +38,8 @@ function handle(state,actor,action,input,{now}){
  const f=order.fulfillment||=( {type:'DELIVERY'} ),pickup=f.type==='PICKUP';
  if(action==='recordFulfillmentIssue'){
   need(typeof input.type==='string'&&Object.prototype.hasOwnProperty.call(titles,input.type),'请选择有效的履约问题');need(!f.issue||f.issue.status!=='OPEN','已有待处理问题，请先处理或更新约定时间');
-  if(input.type==='OUT_OF_STOCK')need(order.status==='PAID','已送出订单请登记快递配送问题');
-  if(input.type==='DELIVERY_FAILED')need(!pickup&&order.status==='SHIPPED','仅已送出的快递配送订单可登记未送达');
+  if(input.type==='OUT_OF_STOCK')need(order.status==='PAID','已发货订单请登记快递配送问题');
+  if(input.type==='DELIVERY_FAILED')need(!pickup&&order.status==='SHIPPED','仅已发货的快递配送订单可登记未送达');
   if(input.type==='PICKUP_DELAY')need(pickup&&order.status==='PAID'&&f.readyAt,'仅已备好的自提订单可登记延期');
   if(f.issue)(f.issueHistory ||= []).push(f.issue);
   f.issue={id:'f'+(++state.sequence),type:input.type,status:'OPEN',note:detail,createdAt:now,updatedAt:now,timeline:[]};
@@ -52,9 +52,9 @@ function handle(state,actor,action,input,{now}){
     need(Number.isSafeInteger(input.nextAt)&&input.nextAt>now&&input.nextAt<=now+30*86400000,'约定时间须在未来 30 天内');issue.nextAt=input.nextAt;issue.note=detail;
     event(order,now,'RESCHEDULE','已协商改期',detail);issue.timeline[issue.timeline.length-1].nextAt=input.nextAt;
    }else if(input.resolution==='RESUME'){
-    need(order.status==='PAID','快递配送订单请登记重新送出或退款');finishIssue(order,now,'RESUME',detail);
+    need(order.status==='PAID','快递配送订单请登记补发快递或退款');finishIssue(order,now,'RESUME',detail);
    }else{
-    need(!pickup&&order.status==='SHIPPED','仅快递配送中订单可以重新送出');const carrier=String(input.carrier||'');need(Object.prototype.hasOwnProperty.call(carriers,carrier),'请选择快递公司');const number=String(input.number||'').trim();need(/^[A-Za-z0-9-]{6,32}$/.test(number),'快递单号请填写 6～32 位字母、数字或横线');
+    need(!pickup&&order.status==='SHIPPED','仅快递配送中订单可以补发快递');const carrier=String(input.carrier||'');need(Object.prototype.hasOwnProperty.call(carriers,carrier),'请选择快递公司');const number=String(input.number||'').trim();need(/^[A-Za-z0-9-]{6,32}$/.test(number),'快递单号请填写 6～32 位字母、数字或横线');
     if(order.shipping)(f.deliveryHistory ||= []).push(order.shipping);order.shipping={carrier,company:carriers[carrier],number,note:detail,at:now};finishIssue(order,now,'REDELIVER',detail);
    }
   }else if(action==='merchantRefund'){
@@ -70,7 +70,7 @@ function handle(state,actor,action,input,{now}){
 function trackingEvents(order){
  const f=order.fulfillment||{},events=[];
  if(f.type==='PICKUP'){if(f.readyAt)events.push({time:f.readyAt,text:'商品已备好，可到店自提'});if(f.redeemedAt)events.push({time:f.redeemedAt,text:'已凭提货码核销'});}
- else [...(f.deliveryHistory||[]),...(order.shipping?[order.shipping]:[])].forEach((s,i)=>events.push({time:s.at,text:(i?'商家已重新送出':'商家已登记送出')+(s.number?' · '+s.number:'')+(s.note?' · '+s.note:'')}));
+ else [...(f.deliveryHistory||[]),...(order.shipping?[order.shipping]:[])].forEach((s,i)=>events.push({time:s.at,text:(i?'商家已补发快递':'商家已登记发货')+(s.number?' · '+s.number:'')+(s.note?' · '+s.note:'')}));
  for(const issue of [...(f.issueHistory||[]),...(f.issue?[f.issue]:[])])for(const e of issue.timeline||[])if(e.action!=='REDELIVER')events.push({time:e.at,text:e.label+' · '+e.detail,...(e.nextAt?{nextAt:e.nextAt}:{})});
  if(order.status==='COMPLETED'&&f.type!=='PICKUP')events.push({time:order.updatedAt,text:'买家已确认收货'});
  return events.sort((a,b)=>a.time-b.time);

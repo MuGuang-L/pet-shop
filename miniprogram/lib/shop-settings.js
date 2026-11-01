@@ -8,7 +8,7 @@ function read(state){
   if(saved)return copy(saved);
   return {revision:0,updatedAt:null,store:{name:studio.pickupStore.name,detail:studio.pickupStore.detail,phone:studio.pickupStore.phone},
     acceptingOrders:true,hours:{days:[1,2,3,4,5,6,7],open:'10:00',close:'00:00',allDay:false,enforce:false},
-    pickup:{enabled:true,instructions:'请收到备货完成通知后，凭提货码到店领取。'},
+    pickup:{enabled:true,instructions:'请在订单显示备货完成后，凭提货码到店领取。'},
     delivery:{enabled:true,fee:state.shippingFee??800,minimum:0,freeAbove:null,area:'请先与门店确认是否在配送范围内。',estimateMinutes:60,estimateText:'以快递公司实际运输时效为准',instructions:'商家寄件后提供快递公司与运单号，可在订单详情查看物流。'}};
 }
 function hoursText(hours){return (hours.days.length===7?'每日':hours.days.map(d=>days[d-1]).join('、'))+' '+(hours.allDay?'全天':hours.open+'—'+(hours.close==='00:00'?'24:00':hours.close));}
