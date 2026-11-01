@@ -3,6 +3,9 @@ const orderDisplay=require('../../services/order-display');
 const statusText={PENDING:'待付款',PAID:'备货中',SHIPPED:'配送中',COMPLETED:'已完成',CANCELLED:'已取消',EXPIRED:'已超时',REFUND_REQUESTED:'售后审核中',REFUNDING:'退款处理中',REFUNDED:'已退款'};
 const display=o=>({...o,...orderDisplay.card(o),statusText:orderDisplay.card(o).statusText||statusText[o.status]||o.status,totalText:(o.total/100).toFixed(2),lines:o.lines.map(line=>({...line,unitText:(line.price/100).toFixed(2),displayImage:line.image||'/assets/empty-v2.jpg'}))});
 Page({
+ requestEpoch:0,
+ onHide(){this.requestEpoch++;this.setData({busy:false,orders:[],page:0,pages:0,total:0});},
+ onUnload(){this.requestEpoch++;this.data.busy=false;},
  data:{rootEntry:false,orders:[],query:'',fulfillment:'ALL',status:'ALL',filters:[{id:'ALL',name:'全部'},{id:'PENDING',name:'待付款'},{id:'PAID',name:'备货中'},{id:'SHIPPED',name:'配送中'},{id:'COMPLETED',name:'已完成'},{id:'AFTERSALE',name:'售后'}],page:0,pages:0,total:0,busy:false,error:'',loginRequired:false},
  onLoad(options={}){this.setData({rootEntry:typeof getCurrentPages!=='function'||getCurrentPages().length<2,status:this.data.filters.some(f=>f.id===options.status)?options.status:'ALL',fulfillment:['PICKUP','DELIVERY'].includes(options.fulfillment)?options.fulfillment:'ALL'});},
  queryInput(e){this.setData({query:e.detail.value});},
@@ -14,15 +17,18 @@ Page({
  async load(page=1,append=false){
   if(this.data.busy)return;
   if(!api.hasSession()){this.setData({orders:[],loginRequired:true,error:''});return;}
+  const epoch=++this.requestEpoch;
   this.setData({busy:true,error:'',loginRequired:false,...(!append?{orders:[],page:0,pages:0,total:0}:{})});
   try{
    const result=await api.call('ordersPage',{page,pageSize:10,status:this.data.status,fulfillment:this.data.fulfillment,q:this.data.query.trim()});
+   if(epoch!==this.requestEpoch)return;
    const orders=result.items.map(display);
    this.setData({orders:append?this.data.orders.concat(orders):orders,page:result.page,pages:result.pages,total:result.total});
   }catch(e){
+   if(epoch!==this.requestEpoch)return;
    const expired=e.code==='AUTH_REQUIRED'||e.message==='AUTH_REQUIRED';
    this.setData({error:expired?'请使用下单时的微信账号重新进入后重试':e.message||'订单读取失败，请重试',...(expired?{orders:[],loginRequired:true,page:0,pages:0,total:0}:{})});
-  }finally{this.setData({busy:false});}
+  }finally{if(epoch===this.requestEpoch)this.setData({busy:false});}
  },
  retry(){return this.load();},
  filter(e){
