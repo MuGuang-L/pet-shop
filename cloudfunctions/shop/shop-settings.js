@@ -55,6 +55,7 @@ function quote(state,input,now){
     need(Number.isSafeInteger(line.qty)&&line.qty>0&&line.qty<=99,'INVALID_QUANTITY');
     const key=line.productId+'|'+line.skuId;need(!seen.has(key),'DUPLICATE_SKU');seen.add(key);
     const product=state.products.find(p=>p.id===line.productId&&p.active);need(product,'PRODUCT_UNAVAILABLE');
+    need(product.category!=='咖啡'||type==='PICKUP','咖啡仅支持到店自提，请将含咖啡的订单选择为到店自提');
     const sku=product.skus.find(k=>k.id===line.skuId);need(sku,'SKU_NOT_FOUND');need(sku.stock>=line.qty,'OUT_OF_STOCK');subtotal+=sku.price*line.qty;
   }
   need(Number.isSafeInteger(subtotal)&&subtotal<=100000000,'AMOUNT_LIMIT');

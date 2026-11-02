@@ -1,0 +1,18 @@
+Generated with built-in image_gen, 2026-11-02.
+Use case: product-mockup. Square generic pet-store illustration, photorealistic studio styling, warm ivory background, soft shadows, centered objects and generous margins. No text, brand, watermark, nutrition or certification claims. AI reference images; match actual goods before use.
+
+cat-food: unbranded cream cat dry food bag beside kibble bowl
+dog-food: unbranded sage green resealable dog kibble bag with a simple dog silhouette beside ceramic bowl of brown dog kibble
+cat-snack: small unbranded cream pouch and a neat small bowl of pale freeze dried chicken cubes for cats
+dog-snack: unbranded kraft paper pouch with a few plain dried meat strips for dogs on a cream dish
+cat-toy: one elegant wooden cat teaser wand with a cotton cord and felt fish toy, arranged neatly
+dog-toy: one durable braided cotton dog rope toy with two knots, muted rust and cream fibers
+cat-clean: one unbranded pale cream cat litter bag next to a small tray of light beige pellet cat litter and a scoop
+dog-clean: one unbranded sage green dog shampoo pump bottle beside a folded cream towel
+cat-supply: one shallow elevated ivory ceramic cat food bowl with low pedestal, empty
+dog-supply: one sage green adjustable dog harness and matching woven leash with metal clasp
+
+Coffee images, built-in image_gen:
+Square premium cafe menu reference image, photorealistic warm ivory tabletop, soft natural light, centered cup with margins, no text, logo, watermark or extra food.
+americano: clear cafe glass of iced black americano, visible ice, no milk.
+latte: ivory ceramic cup and saucer of latte with rosetta latte art.
