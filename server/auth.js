@@ -102,3 +102,5 @@ merchantActions.add('adjustStock');merchantActions.add('stockHistory');
 merchantActions.add('shopSettings');merchantActions.add('quoteOrder');merchantActions.add('saveShopSettings');
 function authorize(actor,action){if(!(actor.merchant?merchantActions:buyerActions).has(action))throw Error('FORBIDDEN');}
 module.exports={Auth,authorize,createAccount,location};
+for(const a of ['membership','createRecharge','balancePay'])buyerActions.add(a);
+merchantActions.add('merchantMembers');

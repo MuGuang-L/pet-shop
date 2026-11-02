@@ -5,10 +5,11 @@ const need=(ok,message)=>{if(!ok)throw Error(message);};
 const days=['周一','周二','周三','周四','周五','周六','周日'];
 function read(state){
   const saved=state.shopSettings;
-  if(saved)return copy(saved);
+  if(saved)return {...copy(saved),pickup:{prepareMinutes:20,...copy(saved.pickup)},membership:{...require('./membership').defaults,...copy(saved.membership||{})}};
   return {revision:0,updatedAt:null,store:{name:studio.pickupStore.name,detail:studio.pickupStore.detail,phone:studio.pickupStore.phone},
     acceptingOrders:true,hours:{days:[1,2,3,4,5,6,7],open:'10:00',close:'00:00',allDay:false,enforce:false},
-    pickup:{enabled:true,instructions:'请在订单显示备货完成后，出示订单到店领取。'},
+    membership:copy(require('./membership').defaults),
+    pickup:{prepareMinutes:20,enabled:true,instructions:'请在订单显示备货完成后，出示订单到店领取。'},
     delivery:{enabled:true,fee:state.shippingFee??800,minimum:0,freeAbove:null,area:'请先与门店确认是否在配送范围内。',estimateMinutes:60,estimateText:'以快递公司实际运输时效为准',instructions:'商家寄件后提供快递公司与运单号，可在订单详情查看物流。'}};
 }
 function hoursText(hours){return (hours.days.length===7?'每日':hours.days.map(d=>days[d-1]).join('、'))+' '+(hours.allDay?'全天':hours.open+'—'+(hours.close==='00:00'?'24:00':hours.close));}
@@ -20,7 +21,7 @@ function openNow(settings,now){
   const time=value=>Number(value.slice(0,2))*60+Number(value.slice(3));
   return settings.hours.days.includes(day)&&(settings.hours.allDay||(minutes>=time(settings.hours.open)&&minutes<(settings.hours.close==='00:00'?1440:time(settings.hours.close))));
 }
-function publicSettings(state,now){const settings=read(state);return {...settings,pickupStore:pickupStore(settings),hoursText:hoursText(settings.hours),canOrder:openNow(settings,now),timeZone:'Asia/Shanghai'};}
+function publicSettings(state,now){const settings=read(state);return {...settings,pickupStore:pickupStore(settings),hoursText:hoursText(settings.hours),pickupSlots:pickupSlots(settings,now),canOrder:openNow(settings,now),timeZone:'Asia/Shanghai'};}
 function save(state,input,now){
   const current=read(state);
   need(Number.isSafeInteger(input.revision)&&input.revision===current.revision,'店铺设置已更新，请重新打开设置后再保存');
@@ -34,11 +35,13 @@ function save(state,input,now){
   need([h.open,h.close].every(v=>typeof v==='string'&&/^([01]\d|2[0-3]):[0-5]\d$/.test(v)),'营业时间格式应为 HH:mm');
   const hours={days:[...h.days].sort(),open:h.open,close:h.close,allDay:bool(h.allDay,'全天营业'),enforce:bool(h.enforce,'营业时间接单限制')};
   need(hours.allDay||hours.close==='00:00'||hours.open<hours.close,'结束时间须晚于开始时间；跨夜营业请暂用全天营业');
-  const pickup={enabled:bool(input.pickup.enabled,'到店自提'),instructions:text(input.pickup.instructions,0,300,'自提说明')};
+  const pickup={enabled:bool(input.pickup.enabled,'到店自提'),instructions:text(input.pickup.instructions,0,300,'自提说明'),prepareMinutes:input.pickup.prepareMinutes??current.pickup.prepareMinutes??20};
+  need(Number.isInteger(pickup.prepareMinutes)&&pickup.prepareMinutes>=0&&pickup.prepareMinutes<=240,'备餐时间须为 0 到 240 分钟');
+  const member=input.membership||current.membership;need(typeof member.enabled==='boolean'&&Array.isArray(member.amounts)&&member.amounts.length>=1&&member.amounts.length<=6&&member.amounts.every(v=>Number.isSafeInteger(v)&&v>=100&&v<=500000)&&new Set(member.amounts).size===member.amounts.length,'充值档位须为 1 到 5000 元，最多六个且不能重复');const membership={enabled:member.enabled,amounts:member.amounts.slice().sort((a,b)=>a-b),terms:text(member.terms,1,500,'储值说明')};
   const d=input.delivery,delivery={enabled:bool(d.enabled,'快递配送'),fee:amount(d.fee,'运费'),minimum:amount(d.minimum,'快递配送起送金额'),freeAbove:d.freeAbove===null?null:amount(d.freeAbove,'免运费门槛'),area:text(d.area,1,200,'配送范围'),estimateMinutes:d.estimateMinutes,instructions:text(d.instructions,0,300,'配送说明'),estimateText:text(d.estimateText??current.delivery.estimateText??'以快递公司实际运输时效为准',1,100,'快递时效说明')};
   need(Number.isInteger(delivery.estimateMinutes)&&delivery.estimateMinutes>=1&&delivery.estimateMinutes<=1440,'预计送达时间须为 1 到 1440 分钟');
   const acceptingOrders=bool(input.acceptingOrders,'接单状态');need(!acceptingOrders||pickup.enabled||delivery.enabled,'接单时请至少开启一种履约方式');
-  state.shopSettings={revision:current.revision+1,updatedAt:now,store,acceptingOrders,hours,pickup,delivery};
+  state.shopSettings={revision:current.revision+1,updatedAt:now,store,acceptingOrders,hours,pickup,delivery,membership};
   state.shippingFee=delivery.fee;
   return publicSettings(state,now);
 }
@@ -55,7 +58,7 @@ function quote(state,input,now){
     need(Number.isSafeInteger(line.qty)&&line.qty>0&&line.qty<=99,'INVALID_QUANTITY');
     const key=line.productId+'|'+line.skuId;need(!seen.has(key),'DUPLICATE_SKU');seen.add(key);
     const product=state.products.find(p=>p.id===line.productId&&p.active);need(product,'PRODUCT_UNAVAILABLE');
-    need(product.category!=='咖啡'||type==='PICKUP','咖啡仅支持到店自提，请将含咖啡的订单选择为到店自提');
+    need(!studio.isCoffee(product)||type==='PICKUP','咖啡和烘焙仅支持到店自提，请将含咖啡或烘焙的订单选择为到店自提');
     const sku=product.skus.find(k=>k.id===line.skuId);need(sku,'SKU_NOT_FOUND');need(sku.stock>=line.qty,'OUT_OF_STOCK');subtotal+=sku.price*line.qty;
   }
   need(Number.isSafeInteger(subtotal)&&subtotal<=100000000,'AMOUNT_LIMIT');
@@ -63,6 +66,8 @@ function quote(state,input,now){
   const shippingFee=type==='PICKUP'||(settings.delivery.freeAbove!==null&&subtotal>=settings.delivery.freeAbove)?0:settings.delivery.fee;
   const total=subtotal+shippingFee;
   if(input.expectedTotal!==undefined)need(input.expectedTotal===total,'订单金额已变化，请刷新结算信息后重试');
-  return {settingsRevision:settings.revision,fulfillment:type,subtotal,shippingFee,total,pickupStore:pickupStore(settings),instructions:type==='PICKUP'?settings.pickup.instructions:settings.delivery.instructions,delivery:type==='DELIVERY'?copy(settings.delivery):null};
+  let pickupAt=null;if(type==='PICKUP'){if(input.pickupAt!==undefined&&input.pickupAt!==null){need(Number.isSafeInteger(input.pickupAt)&&pickupSlots(settings,now).some(slot=>slot.at===input.pickupAt),'自提时间不可选或已过期，请重新选择');pickupAt=input.pickupAt;}else{pickupAt=pickupSlots(settings,now)[1]?.at;need(pickupAt,'未来三天暂无自提时段，请联系门店');}}
+  return {pickupAt,settingsRevision:settings.revision,fulfillment:type,subtotal,shippingFee,total,pickupStore:pickupStore(settings),instructions:type==='PICKUP'?settings.pickup.instructions:settings.delivery.instructions,delivery:type==='DELIVERY'?copy(settings.delivery):null};
 }
 module.exports={read,save,publicSettings,pickupStore,openNow,quote};
+function pickupSlots(settings,now){const result=[{label:'尽快取餐（约 '+(settings.pickup.prepareMinutes??20)+' 分钟）',at:null}];const earliest=now+(settings.pickup.prepareMinutes??20)*60000;let at=Math.ceil(earliest/900000)*900000;for(;at<=now+3*86400000;at+=900000){const d=new Date(at+28800000),day=d.getUTCDay()||7,clock=d.toISOString().slice(11,16);if(settings.hours.days.includes(day)&&(settings.hours.allDay||clock>=settings.hours.open&&(settings.hours.close==='00:00'||clock<settings.hours.close)))result.push({at,label:d.toISOString().slice(5,10)+' '+clock});}result[0].label=result[1]?'尽快取餐 · '+result[1].label:'暂无可选自提时段';return result;}

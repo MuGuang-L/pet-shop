@@ -321,6 +321,7 @@ test('商家保存多规格商品后买家可选规格下单，商家外送后�
   assert.equal(f.buyer('catalog',{}).find(p=>p.id===product.id).skus[1].stock,6);
 });
 function fillSettings(f){
+ f.node('setting-member-amounts').value='100,200,500';f.node('setting-member-terms').value='余额仅限本店消费，退款原路退回';f.node('setting-prepare-minutes').value='20';
   const s=f.run('shopConfig');
   for(const [id,value] of Object.entries({name:s.store.name,detail:s.store.detail,phone:s.store.phone,open:s.hours.open,close:s.hours.close,'pickup-note':s.pickup.instructions,fee:(s.delivery.fee/100).toFixed(2),minimum:'0.00',free:'',estimate:String(s.delivery.estimateMinutes),area:s.delivery.area,'delivery-note':s.delivery.instructions}))f.node('setting-'+id).value=value;
   for(const [id,value] of Object.entries({accept:s.acceptingOrders,allday:s.hours.allDay,enforce:s.hours.enforce,pickup:s.pickup.enabled,delivery:s.delivery.enabled}))f.node('setting-'+id).checked=value;
