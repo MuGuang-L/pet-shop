@@ -37,7 +37,7 @@ async function fixture(run){
 const options={skip:process.env.PET_MONGO_TEST!=='1'};
 
 test('三方联调：下单丢响应后切换买家，恢复原账号只确认原订单且不泄露个人信息',options,async()=>fixture(async f=>{
- const p=f.page;p.setData({deliveryMode:'PICKUP',pickupContact:{name:'账号甲提货人',phone:'13800000000'}});p.detail(event({id:'toy'}));p.buy();f.drop();p.checkout();await idle(p);
+ const p=f.page;await f.api.call('bindPhone',{phone:'13800000000'});await p.refresh();p.setData({deliveryMode:'PICKUP',pickupContact:{name:'账号甲提货人',phone:'13800000000'}});p.detail(event({id:'toy'}));p.buy();f.drop();p.checkout();await idle(p);
  const state=await f.store.snapshot(),original=state.orders[0],scopeA=f.api.checkoutScope();assert.equal(state.orders.length,1);assert.ok(f.storage[scopeA]);
  p.setData({selectedOrder:{...original},orders:[{...original}],addressForm:{name:'账号甲地址草稿'},addressEditing:true,afterForm:{reason:'账号甲售后草稿'},loginForm:{username:'buyer-b',password:'integration-password'}});p.login();await idle(p);
  assert.notEqual(f.api.checkoutScope(),scopeA);assert.ok(f.storage[scopeA]);assert.equal(p.data.selectedOrder,null);assert.equal(p.data.orders.length,0);assert.equal(p.data.addressEditing,false);assert.equal(Object.keys(p.data.addressForm).length,0);assert.equal(Object.keys(p.data.afterForm).length,0);assert.equal(p.data.pickupContact.name,'');assert.equal(p.data.pickupContact.phone,'');assert.equal(f.calls.filter(c=>c.action==='createOrder').length,1);
@@ -67,7 +67,7 @@ test('三方联调：商家模板建品与设置 → 小程序外送付款 → �
  await f.m("api('shopSettings').then(s=>api('saveShopSettings',{...s,store:{...s.store,detail:'隔离联调门店 88 号',phone:'010-12345678'},delivery:{...s.delivery,fee:650},hours:{...s.hours,enforce:false}}))");
  await f.page.refresh();assert.equal(f.page.data.support.phone,'010-12345678');assert.equal(f.page.data.pickupStore.detail,'隔离联调门店 88 号');
  f.page.newAddress();f.page.setData({'addressForm.name':'测试买家','addressForm.phone':'13800000000','addressForm.detail':'隔离联调收货路 1 号'});f.page.saveAddress();await idle(f.page);
- f.page.detail(event({id:product.id}));f.page.buy();assert.equal(f.page.data.checkoutTotal,'26.50');f.page.checkout();await idle(f.page);
+ await f.api.call('bindPhone',{phone:'13800000000'});await f.page.refresh();f.page.detail(event({id:product.id}));f.page.buy();assert.equal(f.page.data.checkoutTotal,'26.50');f.page.checkout();await idle(f.page);
  const id=f.page.data.selectedOrder?.id;assert.ok(id);assert.equal(f.page.data.selectedOrder.total,2650);
  f.page.action(event({action:'mockPay'}));await idle(f.page);assert.equal(f.page.data.selectedOrder.status,'PAID');
  f.page.onHide();await f.m(`viewOrder(${JSON.stringify(id)})`);f.node('carrier').value='shunfeng';f.node('number').value='LOCAL-DELIVERY-01';f.node('delivery-note').value='模拟店员配送';await f.m('ship()');
@@ -84,7 +84,7 @@ test('三方联调：商家模板建品与设置 → 小程序外送付款 → �
 }));
 
 test('三方联调：立即购买丢失响应后重开恢复，不扣原购物车，自提核销与取消释放一致',options,async()=>fixture(async f=>{
- const p=f.page;p.setData({cart:[{productId:'toy',skuId:'toy-1',qty:2}],deliveryMode:'PICKUP',pickupContact:{name:'模拟提货人',phone:'13800000000'}});p.cartTotal();p.detail(event({id:'toy'}));p.buy();f.drop();p.checkout();await idle(p);
+ const p=f.page;await f.api.call('bindPhone',{phone:'13800000000'});await p.refresh();p.setData({cart:[{productId:'toy',skuId:'toy-1',qty:2}],deliveryMode:'PICKUP',pickupContact:{name:'模拟提货人',phone:'13800000000'}});p.cartTotal();p.detail(event({id:'toy'}));p.buy();f.drop();p.checkout();await idle(p);
  assert.equal((await f.store.snapshot()).orders.length,1);assert.equal(p.data.cart[0].qty,2);
  f.errors.length=0;f.restart().onLoad();await idle(f.page);assert.ok(f.page.data.selectedOrder==null);assert.equal(f.page.data.tab,'catalog');assert.equal(f.page.data.cart[0].qty,2);
  const recovered=await f.api.call('ordersPage');assert.equal(recovered.total,1);const o=recovered.items[0];assert.equal(f.storage[f.api.checkoutScope()],null);

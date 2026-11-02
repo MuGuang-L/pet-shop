@@ -37,7 +37,7 @@ test('创建成功但响应丢失，重开页面自动找回原订单，只扣�
 
 test('立即购买最后一件响应丢失，重新打开时不因库存不足阻止恢复，也不修改原购物车',async()=>{
  const f=fixture();await f.page.refresh();f.page.setData({deliveryMode:'PICKUP',pickupContact:{name:'模拟',phone:'13800000000'},cart:[{productId:'food',skuId:'food-1',qty:2,price:5900}]});f.page.cartTotal();
- f.page.detail({currentTarget:{dataset:{id:'toy'}}});f.page.setData({detailQty:30});f.page.buy();f.drop();f.page.checkout();await idle(f.page);
+ f.page.detail({currentTarget:{dataset:{id:'toy'}}});f.page.setData({detailQty:30,boundPhone:'13800000000'});f.page.buy();f.drop();f.page.checkout();await idle(f.page);
  assert.equal(f.state.products[1].skus[0].stock,0);f.restart().onLoad();await idle(f.page);
  assert.equal(f.state.orders.length,1);assert.equal(f.state.orders[0].lines[0].qty,30);assert.ok(f.page.data.selectedOrder==null);assert.equal(f.page.data.tab,'catalog');assert.equal(f.page.data.cart[0].productId,'food');assert.equal(f.page.data.cart[0].qty,2);
 });

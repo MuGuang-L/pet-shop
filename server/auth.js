@@ -97,6 +97,8 @@ const merchantActions=new Set(['catalog','storefront','homeContent','identity','
 for(const a of ['survey','submitSurvey'])buyerActions.add(a);
 for(const a of ['surveyAdmin','saveSurvey'])merchantActions.add(a);
 buyerActions.add('shopSettings');buyerActions.add('quoteOrder');
+for(const a of ['membership','createRecharge','balancePay','bindPhone'])buyerActions.add(a);
+merchantActions.add('merchantMembers');
 for(const a of ['recordFulfillmentIssue','resolveFulfillmentIssue','merchantRefund'])merchantActions.add(a);
 merchantActions.add('adjustStock');merchantActions.add('stockHistory');
 merchantActions.add('shopSettings');merchantActions.add('quoteOrder');merchantActions.add('saveShopSettings');

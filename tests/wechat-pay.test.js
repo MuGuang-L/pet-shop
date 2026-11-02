@@ -11,6 +11,22 @@ function settings(now){
   return {payReady:true,config:{mchId:'1900000001',cloudEnv:'prod-test',cloudService:'pet-shop'},now};
 }
 const buyerHeaders={'x-wx-openid':'openid-buyer','x-wx-source':'wx_client','x-wx-appid':'wx-test-app','x-wx-env':'prod-test','x-wx-service':'pet-shop','x-forwarded-for':'127.0.0.1'};
+test('HTTP 会员充值经微信查单入账，余额付款和会员权限按身份隔离',async()=>{
+ const fx=await boot(()=>Date.now());try{
+  const merchant={id:'owner',merchant:true};const config=await fx.store.execute(merchant,'shopSettings',{});config.membership.enabled=true;config.store.phone='13800000000';await fx.store.execute(merchant,'saveShopSettings',config);
+  const post=(action,input={})=>fx.post('/api',{action,input},undefined,buyerHeaders);
+  const made=await post('createRecharge',{key:'http-recharge-01',amount:10000});assert.equal(made.status,200);
+  const paid=await post('payment',{id:made.body.data.id});assert.equal(paid.status,200);assert.ok(paid.body.data.wechat);
+  assert.equal((await post('membership')).body.data.balance,0);
+  assert.equal((await post('paymentSync',{id:made.body.data.id})).body.data.status,'COMPLETED');
+  await post('paymentSync',{id:made.body.data.id});assert.equal((await post('membership')).body.data.balance,10000);
+  assert.equal((await post('merchantMembers')).status,403);
+  const goods=await post('createOrder',{key:'http-wallet-order',fulfillment:'PICKUP',contact:{name:'会员',phone:'13800000000'},lines:[{productId:'toy',skuId:'toy-1',qty:1}]});assert.equal(goods.status,200);
+  const result=await post('balancePay',{id:goods.body.data.id});assert.equal(result.body.data.payment.provider,'BALANCE');
+  await post('balancePay',{id:goods.body.data.id});assert.equal((await post('membership')).body.data.balance,8100);
+  const anonymous=await fx.post('/api',{action:'membership'});assert.equal(anonymous.status,401);
+ }finally{await fx.close();}
+});
 function payText(payload){return {ok:true,status:200,text:async()=>JSON.stringify(payload)};}
 async function boot(now=Date.now()){
   const store=memory();

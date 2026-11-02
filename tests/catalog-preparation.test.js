@@ -22,7 +22,7 @@ test('咖啡独立分类，报价和下单均拒绝快递，混合订单可以�
  const address=domain.execute(s,buyer,'saveAddress',{name:'测试',phone:'13800000000',detail:'测试市测试路 1 号'});s=address.state;
  const lines=[{productId:p.id,skuId:'cup',qty:1},{productId:'toy',skuId:'toy-1',qty:1}];
  const input={lines,fulfillment:'DELIVERY',addressId:address.result.id,key:'coffee-delivery'};
- const before=structuredClone(s);assert.throws(()=>domain.execute(s,buyer,'quoteOrder',input),/咖啡仅支持到店自提/);assert.throws(()=>domain.execute(s,buyer,'createOrder',input),/咖啡仅支持到店自提/);assert.deepEqual(s,before);
+ const before=structuredClone(s);assert.throws(()=>domain.execute(s,buyer,'quoteOrder',input),/咖啡.*仅支持到店自提/);assert.throws(()=>domain.execute(s,buyer,'createOrder',input),/咖啡.*仅支持到店自提/);assert.deepEqual(s,before);
  const order=domain.execute(s,buyer,'createOrder',{...input,key:'coffee-pickup',fulfillment:'PICKUP',contact:{name:'测试',phone:'13800000000'}},{mock:true}).result;
  assert.equal(order.fulfillment.type,'PICKUP');assert.equal(order.shippingFee,0);assert.equal(order.lines.length,2);
 });

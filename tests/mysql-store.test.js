@@ -45,4 +45,12 @@ test('MySQL 事务保存订单、幂等重放和支付单',async()=>{
   assert.equal((await store.tradesByOrder(order.id))[0].outTradeNo,'Pabc');
   const paid=await store.settlePayment({orderId:order.id,transactionId:'tx-1',amount:4700,currency:'CNY',eventId:'pay:tx-1'});
   assert.equal(paid.status,'PAID');assert.equal(row.revision>2,true);
+  const merchant={id:'wallet-admin',merchant:true},config=await store.execute(merchant,'shopSettings');config.store.phone='13800000000';config.membership.enabled=true;await store.execute(merchant,'saveShopSettings',config);
+  const recharge=await store.execute(buyer,'createRecharge',{key:'mysql-recharge-01',amount:10000});
+  await store.settlePayment({orderId:recharge.id,transactionId:'tx-recharge',amount:10000,currency:'CNY',eventId:'pay:tx-recharge'});
+  assert.equal(row.value.wallets[buyer.id].balance,10000);
+  const purchase=await store.execute(buyer,'createOrder',{key:'mysql-wallet-order',fulfillment:'PICKUP',contact:{name:'会员',phone:'13800000000'},lines:[{productId:'toy',skuId:'toy-1',qty:1}]});
+  await store.execute(buyer,'balancePay',{id:purchase.id});await store.execute(buyer,'balancePay',{id:purchase.id});
+  assert.equal(row.value.wallets[buyer.id].balance,8100);
+  const restarted=new MysqlStore(store.pool,'pet_shop');assert.equal((await restarted.execute(buyer,'membership')).balance,8100);
 });

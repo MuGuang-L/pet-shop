@@ -6,7 +6,7 @@ function primary(o){
  if(o.status==='SHIPPED'||o.status==='PAID')return {label:'查看配送',section:'fulfillment'};
  return {label:'查看详情',section:'overview'};
 }
-function card(o){return {orderDateText:(o.orderDate||'').replace(/^(\d{4})(\d{2})(\d{2})$/,'$1-$2-$3'),primaryAction:primary(o),fulfillmentText:o.fulfillment?.type==='PICKUP'?'到店自提':'快递配送',itemCount:o.lines.reduce((n,l)=>n+l.qty,0),statusText:studio.afterStages[o.refund?.stage]&&o.status.startsWith('REFUND')?studio.afterStages[o.refund.stage]:studio.fulfillmentLabel(o)};}
+function card(o){return {orderDateText:(o.orderDate||'').replace(/^(\d{4})(\d{2})(\d{2})$/,'$1-$2-$3'),primaryAction:primary(o),fulfillmentText:o.kind==='RECHARGE'?'会员充值':o.fulfillment?.type==='PICKUP'?'到店自提':'快递配送',itemCount:o.lines.reduce((n,l)=>n+l.qty,0),statusText:studio.afterStages[o.refund?.stage]&&o.status.startsWith('REFUND')?studio.afterStages[o.refund.stage]:studio.fulfillmentLabel(o)};}
 // Only persisted event times are shown; updatedAt is not a historical payment time.
 function timeline(o){
  const f=o.fulfillment||{},pickup=f.type==='PICKUP',events=[];

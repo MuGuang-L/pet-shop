@@ -3,10 +3,11 @@ const {randomInt}=require('node:crypto');
 const aftersales=require('../cloudfunctions/shop/aftersales');
 const fulfillment=require('../cloudfunctions/shop/fulfillment');
 const EXPIRY_BATCH=100;
-const orderActions=new Set(['order','cancel','payment','mockPay','confirmReceipt','tracking','ship','pickupReady','pickupRedeem','pickupComplete',...aftersales.actions,...fulfillment.actions]);
+const orderActions=new Set(['balancePay','order','cancel','payment','mockPay','confirmReceipt','tracking','ship','pickupReady','pickupRedeem','pickupComplete',...aftersales.actions,...fulfillment.actions]);
 const activePickup=['PENDING','PAID','REFUND_REQUESTED','REFUNDING'];
 const strings=values=>[...new Set(values.filter(v=>typeof v==='string'&&v.length<=100))];
 function requestKey(actor,action,input){
+ if(action==='createRecharge')return JSON.stringify(['recharge',actor.id,input.key]);
  if(action==='createOrder')return JSON.stringify([actor.id,input.key]);
  if(['saveProduct','saveAddress'].includes(action)&&!input.id&&input.requestKey!==undefined)return JSON.stringify(['create',action,actor.id,input.requestKey]);
  if(action==='adjustStock')return JSON.stringify(['inventory',actor.id,input.requestKey]);
@@ -25,7 +26,7 @@ async function loadScope(store,session,actor,action,input,options,hash){
  // A request and each timer tick expire at most one batch. The exact requested
  // order is also loaded, so an expired order can never be paid between batches.
  const due=await store.read('orders').find({status:'PENDING',expiresAt:{$lte:now}},{session}).sort({expiresAt:1,_id:1}).limit(EXPIRY_BATCH).toArray();
- const ids=strings([...(orderActions.has(action)?[input.id]:[]),...docs.idempotency_keys.map(d=>action==='createOrder'?d.value.id:null)]);
+ const ids=strings([...(orderActions.has(action)?[input.id]:[]),...docs.idempotency_keys.map(d=>['createOrder','createRecharge'].includes(action)?d.value.id:null)]);
  let requested=[];
  if(action==='orders'||action==='merchantOrders'){
   if(action==='merchantOrders'&&actor.merchant!==true)throw Error('FORBIDDEN');
@@ -40,7 +41,7 @@ async function loadScope(store,session,actor,action,input,options,hash){
   const row=await db.collection('address_books').findOne({_id:actor.id},{session});if(row)docs.address_books.push(row);
  }
  const context={};
- if(action==='createOrder'){
+ if(['createOrder','createRecharge'].includes(action)){
   const numbering=require('../cloudfunctions/shop/order-number'),date=numbering.day(now);
   if(meta.value.orderCounters?.[date]===undefined){const bounds=numbering.bounds(date);const rows=await store.read('orders').aggregate([{$match:{createdAt:{$gte:bounds.start,$lt:bounds.end}}},{$project:{n:{$convert:{input:{$substrBytes:[{$ifNull:['$value.orderNo','$_id']},1,32]},to:'int',onError:0,onNull:0}}}},{$group:{_id:null,max:{$max:'$n'}}}],{session}).toArray();context.orderNumberBase=rows[0]?.max||0;}
  }

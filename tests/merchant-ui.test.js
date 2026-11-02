@@ -55,7 +55,7 @@ function fixture(intercept) {
   const node = id => nodes[id] ||= {
     innerHTML: '', textContent: '', value: '', checked: false, style: {}, attrs: {}, open: false,
     setAttribute(k, v) { this.attrs[k] = v; }, showModal() { this.open = true; },
-    close() { this.open = false; }, addEventListener(type, callback) { listeners[id+':'+type]=callback; }, querySelector() { return null; }, appendChild() {}
+    close() { this.open = false; }, scrollIntoView() {}, addEventListener(type, callback) { listeners[id+':'+type]=callback; }, querySelector() { return null; }, appendChild() {}
   };
   const context = vm.createContext({
     Studio, console, AbortController, setTimeout, clearTimeout, document: { getElementById: node, querySelectorAll: () => [], createElement: () => ({ style: {} }) },
@@ -321,6 +321,7 @@ test('商家保存多规格商品后买家可选规格下单，商家外送后�
   assert.equal(f.buyer('catalog',{}).find(p=>p.id===product.id).skus[1].stock,6);
 });
 function fillSettings(f){
+ f.node('setting-member-amounts').value='100,200,500';f.node('setting-member-terms').value='余额仅限本店消费，退款原路退回';f.node('setting-prepare-minutes').value='20';
   const s=f.run('shopConfig');
   for(const [id,value] of Object.entries({name:s.store.name,detail:s.store.detail,phone:s.store.phone,open:s.hours.open,close:s.hours.close,'pickup-note':s.pickup.instructions,fee:(s.delivery.fee/100).toFixed(2),minimum:'0.00',free:'',estimate:String(s.delivery.estimateMinutes),area:s.delivery.area,'delivery-note':s.delivery.instructions}))f.node('setting-'+id).value=value;
   for(const [id,value] of Object.entries({accept:s.acceptingOrders,allday:s.hours.allDay,enforce:s.hours.enforce,pickup:s.pickup.enabled,delivery:s.delivery.enabled}))f.node('setting-'+id).checked=value;
@@ -359,7 +360,13 @@ test('商家旧编辑页遭遇下单后保存，提示冲突并保留草稿，�
 });
 test('经营设置表单校验、失败保留草稿，成功后买家可读相同费用与地址',async()=>{
   let fail=true;const f=fixture(body=>{if(body.action==='saveShopSettings'&&fail)throw Error('网络暂时不可用');});
-  await f.run("show('settings')");assert.match(f.node('app').innerHTML,/门店经营设置/);f.run('editShopSettings()');fillSettings(f);
+  await f.run("show('settings')");assert.match(f.node('app').innerHTML,/门店经营设置/);
+  assert.match(f.node('app').innerHTML,/editShopSettings\('settings-membership'\)">编辑/);
+  assert.doesNotMatch(f.node('app').innerHTML,/编辑充值设置/);
+  f.run("editShopSettings('settings-membership')");
+  assert.match(f.node('modal').innerHTML,/href="#settings-membership">会员储值/);
+  assert.match(f.node('modal').innerHTML,/id="settings-membership"/);
+  f.run('editShopSettings()');fillSettings(f);
   f.node('setting-name').value='测试门店';f.node('setting-fee').value='6.50';f.run('markDirty()');
   await assert.rejects(f.run('saveShopSettings({preventDefault(){}})'),/未收到确认结果/);
   assert.equal(f.node('modal').open,true);assert.equal(f.node('setting-name').value,'测试门店');assert.equal(f.node('settings-fields').disabled,false);

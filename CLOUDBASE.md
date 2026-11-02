@@ -1,5 +1,7 @@
 # 微信云托管部署
 
+咖啡烘焙优先布局、自提预约与会员储值的新配置见 [KIGI Space 功能说明](docs/KIGI-CAFE-MEMBERSHIP.md)。更新需同时部署服务端和小程序；会员充值默认关闭，在商家经营设置中配置档位和开关。
+
 当前线上形态是：小程序通过 `wx.cloud.callContainer` 调用容器里的 `server/index.js`。没有公众号网页，也不部署 `cloudfunctions/` 里的云函数。本机不设置 MySQL 变量时，仍使用本地 MongoDB，见 README。
 
 ## 发布前在控制台完成
