@@ -2,7 +2,7 @@
 const need=(ok,message)=>{if(!ok)throw Error(message);};
 const defaults={enabled:false,amounts:[10000,20000,50000],terms:'充值余额仅限本店消费，不计息；商品退款退回余额。充值退款请联系门店，按原支付渠道处理。'};
 function settings(state){return {...defaults,...state.shopSettings?.membership};}
-function account(state,id){state.wallets ||= {};return state.wallets[id] ||= {balance:0,entries:[]};}
+function account(state,id){state.wallets ||= {};const wallet=state.wallets[id] ||= {balance:0,entries:[]};const phone=state.profiles?.[id]?.phone;if(phone)wallet.phone=phone;return wallet;}
 function movement(state,id,amount,key,label,now){
  const wallet=account(state,id),previous=wallet.entries.find(e=>e.key===key);
  if(previous){need(previous.amount===amount,'储值流水冲突');return;}
@@ -12,7 +12,7 @@ function movement(state,id,amount,key,label,now){
 const actions=new Set(['membership','merchantMembers','createRecharge','balancePay']);
 function handle(state,actor,action,input,now,allocate){
  if(action==='membership'){const w=state.wallets?.[actor.id]||{balance:0,entries:[]};return {...settings(state),...w,entries:w.entries.slice(-50).reverse()};}
- if(action==='merchantMembers'){need(actor.merchant===true,'FORBIDDEN');return Object.entries(state.wallets||{}).map(([id,w])=>({id,...w,entries:w.entries.slice(-50).reverse()}));}
+ if(action==='merchantMembers'){need(actor.merchant===true,'FORBIDDEN');return Object.entries(state.wallets||{}).map(([id,w])=>{const phone=state.profiles?.[id]?.phone||w.phone||'';return {phone:phone||'未绑定手机号',balance:w.balance,entries:w.entries.slice(-50).reverse()};});}
  need(!actor.merchant,'商家账号不能充值或消费');
  if(action==='createRecharge'){
   need(settings(state).enabled,'门店暂未开放充值');

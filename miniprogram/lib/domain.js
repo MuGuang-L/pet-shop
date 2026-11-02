@@ -16,7 +16,7 @@ function seed() {
     {id:'food',revision:0,name:'样例 · 鲜肉猫粮',category:'主粮',description:'虚构样例商品，用于流程验收。正式销售前填写配料、适用年龄、保质期及生产信息。',image:'',active:true,skus:[{id:'food-1',name:'1kg 体验装',price:3900,stock:20},{id:'food-2',name:'2kg 家庭装',price:7200,stock:10}]},
     {id:'toy',revision:0,name:'样例 · 绳结玩具',category:'玩具',description:'虚构样例。适用于互动玩耍，规格与材质仅用于演示。',image:'',active:true,skus:[{id:'toy-1',name:'薄荷绿 / M',price:1900,stock:30}]},
     {id:'care',revision:0,name:'样例 · 宠物梳',category:'清洁',description:'虚构样例。正式商品请填写材质、尺寸和使用注意事项。',image:'',active:true,skus:[{id:'care-1',name:'标准款',price:2900,stock:15}]}
-  ],orders:[],stockMovements:[],addresses:{},keys:{},events:{},shippingFee:800};
+  ],orders:[],stockMovements:[],addresses:{},profiles:{},keys:{},events:{},shippingFee:800};
 }
 function address(a) { need(a && typeof a.name==='string' && a.name.trim().length>0 && a.name.length<=40,'ADDRESS_NAME'); need(/^1\d{10}$/.test(a.phone),'ADDRESS_PHONE'); need(typeof a.detail==='string' && a.detail.trim().length>=5 && a.detail.length<=200,'ADDRESS_DETAIL'); return {name:a.name.trim(),phone:a.phone,detail:a.detail.trim()}; }
 // Stock that may still be released by cancellation, expiry or a pre-dispatch refund.
@@ -94,7 +94,8 @@ function execute(state,actor,action,input={},options={}) {
     case 'homeContent': result={...studio.homeDefaults,...s.homeContent};break;
     case 'saveHomeContent': {merchant();const next={...studio.homeDefaults,...s.homeContent};for(const [key,max] of Object.entries({headline:24,subtitle:40,featuredTitle:18,featuredIntro:60,newTitle:18})){if(input[key]!==undefined){need(typeof input[key]==='string'&&input[key].trim().length>0&&input[key].length<=max,'首页文案长度不正确');next[key]=input[key].trim();}}if(input.scenes!==undefined){need(Array.isArray(input.scenes)&&input.scenes.length===3,'请保留三个场景入口');next.scenes=input.scenes.map((item,i)=>{need(['咖啡','烘焙','主粮','零食','玩具','清洁','用品'].includes(item.category),'请选择有效分类');need(typeof item.title==='string'&&item.title.trim().length>0&&item.title.length<=18,'场景标题限 1～18 字');need(typeof item.text==='string'&&item.text.length<=40,'场景说明最多 40 字');need(studio.assets.some(a=>a.id===item.image),'请选择图库图片');return {key:studio.homeDefaults.scenes[i].key,category:item.category,title:item.title.trim(),text:item.text,image:item.image};});}s.homeContent=next;result=next;break;}
     case 'catalog': result=s.products.filter(p=>p.active); break;
-    case 'identity': result={id:actor.id,merchant:actor.merchant===true,mode:options.mock?'mock':'cloud',capabilities:actor.merchant===true?['inventory-v1','fulfillment-issues-v1']:[]};break;
+    case 'identity': result={id:actor.id,merchant:actor.merchant===true,phone:s.profiles?.[actor.id]?.phone||'',mode:options.mock?'mock':'cloud',capabilities:actor.merchant===true?['inventory-v1','fulfillment-issues-v1']:[]};break;
+    case 'bindPhone': {need(actor.merchant!==true,'商家账号不能绑定买家手机号');need(/^1\d{10}$/.test(input.phone),'请填写 11 位手机号');s.profiles||={};s.profiles[actor.id]={phone:input.phone,boundAt:now};if(s.wallets?.[actor.id])s.wallets[actor.id].phone=input.phone;result={phone:input.phone};break;}
     case 'addresses': result=s.addresses[actor.id]||[];break;
     case 'saveAddress': { const list=s.addresses[actor.id]||[]; const a=address(input); a.id=input.id||'a'+(++s.sequence); const i=list.findIndex(x=>x.id===a.id); if(input.id) need(i>=0,'ADDRESS_NOT_FOUND'); if(i>=0) list[i]=a;else {need(list.length<20,'ADDRESS_LIMIT');list.push(a);}s.addresses[actor.id]=list;result=a;break; }
     case 'deleteAddress': {const list=s.addresses[actor.id]||[];need(list.some(a=>a.id===input.id),'ADDRESS_NOT_FOUND');s.addresses[actor.id]=list.filter(a=>a.id!==input.id);result=true;break;}

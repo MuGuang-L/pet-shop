@@ -55,7 +55,7 @@ function fixture(intercept) {
   const node = id => nodes[id] ||= {
     innerHTML: '', textContent: '', value: '', checked: false, style: {}, attrs: {}, open: false,
     setAttribute(k, v) { this.attrs[k] = v; }, showModal() { this.open = true; },
-    close() { this.open = false; }, addEventListener(type, callback) { listeners[id+':'+type]=callback; }, querySelector() { return null; }, appendChild() {}
+    close() { this.open = false; }, scrollIntoView() {}, addEventListener(type, callback) { listeners[id+':'+type]=callback; }, querySelector() { return null; }, appendChild() {}
   };
   const context = vm.createContext({
     Studio, console, AbortController, setTimeout, clearTimeout, document: { getElementById: node, querySelectorAll: () => [], createElement: () => ({ style: {} }) },
@@ -360,7 +360,13 @@ test('商家旧编辑页遭遇下单后保存，提示冲突并保留草稿，�
 });
 test('经营设置表单校验、失败保留草稿，成功后买家可读相同费用与地址',async()=>{
   let fail=true;const f=fixture(body=>{if(body.action==='saveShopSettings'&&fail)throw Error('网络暂时不可用');});
-  await f.run("show('settings')");assert.match(f.node('app').innerHTML,/门店经营设置/);f.run('editShopSettings()');fillSettings(f);
+  await f.run("show('settings')");assert.match(f.node('app').innerHTML,/门店经营设置/);
+  assert.match(f.node('app').innerHTML,/editShopSettings\('settings-membership'\)">编辑/);
+  assert.doesNotMatch(f.node('app').innerHTML,/编辑充值设置/);
+  f.run("editShopSettings('settings-membership')");
+  assert.match(f.node('modal').innerHTML,/href="#settings-membership">会员储值/);
+  assert.match(f.node('modal').innerHTML,/id="settings-membership"/);
+  f.run('editShopSettings()');fillSettings(f);
   f.node('setting-name').value='测试门店';f.node('setting-fee').value='6.50';f.run('markDirty()');
   await assert.rejects(f.run('saveShopSettings({preventDefault(){}})'),/未收到确认结果/);
   assert.equal(f.node('modal').open,true);assert.equal(f.node('setting-name').value,'测试门店');assert.equal(f.node('settings-fields').disabled,false);

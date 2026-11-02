@@ -14,7 +14,7 @@ test('真实充值校验金额与事件，重复通知和重试只入账一次�
  assert.throws(()=>f.paid(o.id,9999),/PAYMENT_AMOUNT_MISMATCH/);assert.equal(f.run(buyer,'membership').balance,0);
  assert.equal(f.paid(o.id).status,'COMPLETED');f.paid(o.id);f.paid(o.id,10000,'tx-'+o.id);
  assert.equal(f.run(buyer,'membership').balance,10000);assert.equal(f.run(buyer,'membership').entries.length,1);assert.equal(f.run(other,'membership').balance,0);
- assert.throws(()=>f.run(buyer,'merchantMembers'),/FORBIDDEN/);assert.equal(f.run(merchant,'merchantMembers').length,1);
+ assert.throws(()=>f.run(buyer,'merchantMembers'),/FORBIDDEN/);const unnamed=f.run(merchant,'merchantMembers');assert.equal(unnamed.length,1);assert.equal(unnamed[0].phone,'未绑定手机号');assert.equal(unnamed[0].id,undefined);f.run(buyer,'bindPhone',{phone:'13800138000'});assert.equal(f.run(buyer,'identity').phone,'13800138000');assert.equal(f.run(merchant,'merchantMembers')[0].phone,'13800138000');assert.throws(()=>f.run(buyer,'bindPhone',{phone:'123'}),/11 位手机号/);assert.throws(()=>f.run(merchant,'bindPhone',{phone:'13800138000'}),/不能绑定/);
 });
 
 test('余额付款原子扣减，重复请求不再扣款；余额不足和越权请求保持原数据',()=>{
