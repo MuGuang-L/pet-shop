@@ -54,6 +54,21 @@ test('关闭后充值到账不计入余额，进入原渠道退款；重启后�
  const o2=recharge(f,'restart-recharge');f.paid(o2.id);f.state=JSON.parse(JSON.stringify(f.state));assert.equal(f.run(buyer,'membership').balance,10000);
 });
 
+test('充值档位可让到账高于实付，微信仍按实付收款，退款扣回当时到账额',()=>{
+ const f=fixture();const config=f.run(merchant,'shopSettings');config.membership.enabled=true;config.membership.tiers=[{pay:10000,credit:12000},{pay:20000,credit:20000}];config.store.phone='13800000000';f.run(merchant,'saveShopSettings',config);
+ const o=recharge(f);assert.equal(o.total,10000);assert.equal(o.walletCredit,12000);assert.match(o.lines[0].spec,/到账 ¥120.00/);
+ assert.equal(f.paid(o.id).status,'COMPLETED');assert.equal(f.run(buyer,'membership').balance,12000);
+ const purchase=goods(f);f.run(buyer,'balancePay',{id:purchase.id});
+ const request=f.run(buyer,'refundRequest',{id:o.id,type:'REFUND_ONLY',reason:'退回充值'});
+ assert.throws(()=>f.run(merchant,'refundReview',{id:o.id,caseId:request.refund.caseId,approve:true,note:'余额不足'}),/余额不足/);
+ f.paid(recharge(f,'bonus-topup').id);f.run(merchant,'refundReview',{id:o.id,caseId:request.refund.caseId,approve:true,note:'扣回赠送'});
+ assert.equal(f.run(buyer,'membership').balance,10100);
+ const payload={orderId:o.id,eventId:'bonus-refund',refundId:'refund-bonus',amount:10000,currency:'CNY'};
+ f.state=domain.settleVerifiedRefund(f.state,payload,now+2).state;
+ assert.equal(f.run(buyer,'order',{id:o.id}).status,'REFUNDED');assert.equal(f.run(buyer,'membership').balance,10100);
+ const current=f.run(merchant,'shopSettings');assert.throws(()=>f.run(merchant,'saveShopSettings',{...current,membership:{...current.membership,tiers:[{pay:10000,credit:5000}]}}),/不能低于充值金额/);
+});
+
 test('烘焙独立分类且仅自提；预约时间按上海营业时间校验、保存并参与幂等',()=>{
  const f=fixture();const product=f.run(merchant,'saveProduct',{name:'奶油可颂',category:'烘焙',active:true,image:'',skus:[{id:'piece',name:'单份',price:1200,stock:10}]});
  assert.equal(product.petScope,'不适用');const lines=[{productId:product.id,skuId:'piece',qty:1}];
