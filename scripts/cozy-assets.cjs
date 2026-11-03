@@ -29,11 +29,13 @@ const targets={
   for(const filename of targets[item.id]||[]){
    const png=filename.endsWith('.png');
    const width=item.id.startsWith('nav-')?96:png?(filename.startsWith('kigi-')?240:item.id==='hero'?320:180):item.id==='hero'?800:320;
-   let pipeline=sharp(original).resize({width,withoutEnlargement:true});
+   const input=png&&item.cutoutOriginal?path.join(source,item.cutoutOriginal):original;
+   let pipeline=sharp(input).resize({width,withoutEnlargement:true});
    pipeline=png?pipeline.png({palette:true,colours:48,effort:10}):pipeline.jpeg({quality:68,mozjpeg:true});
    await pipeline.toFile(path.join(assets,filename));
   }
  }
+ await sharp(path.join(source,'logo-transparent.png')).resize({width:512}).png({palette:true,colours:48,effort:10}).toFile(path.join(assets,'kigi-logo.png'));
  // Preserve the immutable upload path already saved on the croissant product.
  // Cloud clients without assetBase resolve this URL from their local package.
  const uploads=path.join(root,'miniprogram/uploads');fs.mkdirSync(uploads,{recursive:true});

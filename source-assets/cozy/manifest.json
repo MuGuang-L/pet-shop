@@ -1,15 +1,18 @@
 [
   {
     "id": "cat",
-    "original": "cat.png"
+    "original": "cat.png",
+    "cutoutOriginal": "cat-transparent.png"
   },
   {
     "id": "dog",
-    "original": "dog.png"
+    "original": "dog.png",
+    "cutoutOriginal": "dog-transparent.png"
   },
   {
     "id": "empty",
-    "original": "empty.png"
+    "original": "empty.png",
+    "cutoutOriginal": "empty-transparent.png"
   },
   {
     "id": "bakery",
@@ -65,19 +68,23 @@
   },
   {
     "id": "nav-home",
-    "original": "nav-home.png"
+    "original": "nav-home.png",
+    "cutoutOriginal": "nav-home-transparent.png"
   },
   {
     "id": "nav-category",
-    "original": "nav-category.png"
+    "original": "nav-category.png",
+    "cutoutOriginal": "nav-category-transparent.png"
   },
   {
     "id": "nav-cart",
-    "original": "nav-cart.png"
+    "original": "nav-cart.png",
+    "cutoutOriginal": "nav-cart-transparent.png"
   },
   {
     "id": "nav-account",
-    "original": "nav-account.png"
+    "original": "nav-account.png",
+    "cutoutOriginal": "nav-account-transparent.png"
   },
   {
     "id": "brush",

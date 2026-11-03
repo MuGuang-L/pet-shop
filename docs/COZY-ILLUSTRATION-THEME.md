@@ -16,6 +16,12 @@
 
 分类检查：`node scripts/catalog-coverage.cjs <merchantProducts.json>`，检查咖啡、烘焙以及猫狗各五类的上架商品、库存和配图；发现缺口时返回非零退出码。历史商品快照只能用于准备，不能据此声称当前云端齐全。
 
+## iPhone 视觉修正
+
+咖啡烘焙、会员、自提及快递入口的斜箭头改用 WXSS 线条绘制，不再依赖可能显示为蓝色表情的箭头字符。猫狗入口 PNG 使用透明底切图，避免图片的奶油纸底与卡片底色形成方块。原图保留，`manifest.json` 的 `cutoutOriginal` 指向透明原稿；压缩脚本在生成 PNG 时保留 alpha，旧 JPG 仍从有背景原稿生成。
+
+透明图编辑使用内置 imagegen。提示词：仅移除原插画的整块奶油纸背景，输出真实透明 PNG；保留原猫咪/狗狗的造型、表情、衣服、配色、彩铅蜡笔纹理及小星星；毛色和帽子内部保持不透明，星星和胡须之间也应透明，不绘制棋盘格或新的矩形底色。
+
 ## 字体与样式
 
 标题使用 ZCOOL KuaiLe（站酷快乐体）的 UI 字符子集，以 WOFF2 内嵌在 WXSS 中，无需远程字体服务。价格、商品名称、正文、订单号码保持常规清晰字体；新增且未收录的标题字符会回退到系统字体。
@@ -31,3 +37,15 @@
 - 使用本机微信 WXML / WXSS 编译器验证页面和字体样式；开发者工具实际检查首页、咖啡分类、购物车、个人中心与订单列表，返回导航正常。
 - 此次不修改支付、余额、订单状态或数据库逻辑。
 - 本地预览更新不等于手机体验版更新，重新上传和发布需另行执行。
+
+### 全图片背景审查（2026-11-03）
+
+逐张查看 assets 目录原有 39 张图片及新增透明 Logo，并在开发工具首页、个人中心查看实际叠放效果。商品图及横幅保留完整插画背景；猫狗入口、四个导航图标、空状态图和 Logo 使用真正透明 PNG，保留旧 JPEG 路径兼容历史配置。透明源图保存在 source-assets/cozy/*-transparent.png，运行图由 scripts/cozy-assets.cjs 压缩生成。
+
+修复配送卡片第二项旧 nth-child 灰底覆盖；导航选中背景改为 #fff3dc。空状态和 Logo 的旧配置解析到新资源，自定义远程图片保持原值。所有箭头不再使用容易变成 emoji 的 ↗ 字符。
+
+生成工具：内置 image_gen，transparent_background=true。导航及空状态提示词：Remove only the cream paper background from this existing illustration to genuine transparent alpha. Preserve exact illustration, composition, size, colors, crayon texture and opaque cream fills INSIDE the subject. Make spaces around and between the subject and detached details transparent including handle holes. No background square, no halo, no checkerboard. This is a mini program UI overlay icon.
+
+Logo 提示词：Remove only the pure white background from this official logo, output genuine transparent alpha. Preserve EXACT logo lettering KIGIwish and Chinese 奇迹味时, all shapes, orange color, spacing and positions and square canvas. Do not redraw or reinterpret any glyph. White negative spaces between letters and outside logo must be transparent. No shadow, no new border, no checkerboard.
+
+验证：159 文件语法/JSON 检查、studio 8 项测试、WXML/WXSS 官方编译器通过。8 张主要叠放资源均含有效 alpha，assets 总量 535620 bytes。开发工具首页与个人中心确认无猫狗/导航/Logo 方块、配送卡片为浅色；手机体验版需用户重新上传后复核，未宣称已完成真实 iPhone 回归。

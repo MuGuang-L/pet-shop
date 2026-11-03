@@ -34,7 +34,7 @@ test('整套店铺图片包含官方标志时可保存，仍拒绝未知本地�
  const before=domain.seed();
  const input={...studio.defaults,cat:'/assets/bed-v3.jpg'};
  const saved=domain.execute(before,{id:'owner',merchant:true},'saveStorefront',input,{mock:true});
- assert.equal(saved.result.avatar,'/assets/kigi-logo.jpg');
+ assert.equal(saved.result.avatar,'/assets/kigi-logo.png');
  assert.equal(saved.result.cat,'/assets/bed-v3.jpg');
  assert.throws(()=>domain.execute(before,{id:'owner',merchant:true},'saveStorefront',{...input,avatar:'/assets/not-approved.jpg'},{mock:true}),/IMAGE_PATH/);
 });
