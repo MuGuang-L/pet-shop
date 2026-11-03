@@ -5,9 +5,9 @@
   ],
   "window": {
     "navigationBarTitleText": "奇迹空间宠物咖啡店",
-    "navigationBarBackgroundColor": "#faf8f3",
+    "navigationBarBackgroundColor": "#fff8eb",
     "navigationBarTextStyle": "black",
-    "backgroundColor": "#faf8f3"
+    "backgroundColor": "#fff8eb"
   },
   "sitemapLocation": "sitemap.json"
 }

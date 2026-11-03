@@ -1,0 +1,94 @@
+[
+  {
+    "id": "cat",
+    "original": "cat.png"
+  },
+  {
+    "id": "dog",
+    "original": "dog.png"
+  },
+  {
+    "id": "empty",
+    "original": "empty.png"
+  },
+  {
+    "id": "bakery",
+    "original": "bakery.png"
+  },
+  {
+    "id": "cat-food",
+    "original": "cat-food.png"
+  },
+  {
+    "id": "cat-snack",
+    "original": "cat-snack.png"
+  },
+  {
+    "id": "cat-toy",
+    "original": "cat-toy.png"
+  },
+  {
+    "id": "cat-clean",
+    "original": "cat-clean.png"
+  },
+  {
+    "id": "cat-supply",
+    "original": "cat-supply.png"
+  },
+  {
+    "id": "dog-food",
+    "original": "dog-food.png"
+  },
+  {
+    "id": "dog-snack",
+    "original": "dog-snack.png"
+  },
+  {
+    "id": "dog-toy",
+    "original": "dog-toy.png"
+  },
+  {
+    "id": "dog-clean",
+    "original": "dog-clean.png"
+  },
+  {
+    "id": "dog-supply",
+    "original": "dog-supply.png"
+  },
+  {
+    "id": "americano",
+    "original": "americano.png"
+  },
+  {
+    "id": "latte",
+    "original": "latte.png"
+  },
+  {
+    "id": "nav-home",
+    "original": "nav-home.png"
+  },
+  {
+    "id": "nav-category",
+    "original": "nav-category.png"
+  },
+  {
+    "id": "nav-cart",
+    "original": "nav-cart.png"
+  },
+  {
+    "id": "nav-account",
+    "original": "nav-account.png"
+  },
+  {
+    "id": "brush",
+    "original": "brush.png"
+  },
+  {
+    "id": "bed",
+    "original": "bed.png"
+  },
+  {
+    "id": "hero",
+    "original": "hero.png"
+  }
+]

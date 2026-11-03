@@ -23,3 +23,6 @@
 .pet-filter-tabs button.chosen{background:#fae9df;color:#a9420e;font-weight:600}
 .pet-filter-tabs button::after{display:none}
 .coffee-pickup-caption{margin:-8rpx 0 20rpx;color:#888;font-size:23rpx;line-height:1.5}
+
+/* Keep local component rules in the warm palette. */
+.shop-section-tabs{gap:24rpx;border-bottom:1rpx solid #e9dbc5}.shop-section-tabs button{font-family:KigiTitle,sans-serif;font-weight:400;color:#98775a;font-size:34rpx}.shop-section-tabs button.chosen{color:#a85a32;font-weight:400}.shop-section-tabs button.chosen::after{background:#c99254;width:48rpx;margin-left:-24rpx}.pet-filter-tabs button{background:#f5ead7;color:#997758}.pet-filter-tabs button.chosen{background:#edcea1;color:#81502c}.coffee-pickup-caption{color:#98704c;background:#f9edda;margin:0 0 20rpx}.delivery-timeline-card,.express-card{background:#fffdf6}.delivery-event-current .delivery-event-title,.delivery-event-current .delivery-event-time{color:#a36a3f}

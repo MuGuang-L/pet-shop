@@ -3,7 +3,7 @@ const logisticsPlugin=require('../../services/logistics-plugin');
 const checkout=require('../../services/checkout');
 const orderDisplay=require('../../services/order-display');
 const studio=require('../../lib/studio');
-const shopSettings=require('../../lib/shop-settings');
+const shopSettings=require('../../lib/shop-settings.js');
 function slotGroups(slots){const groups=[];for(const slot of slots){const date=slot.at==null?'尽快取餐':slot.label.slice(0,5);const time=slot.at==null?(slot.label.includes('·')?slot.label.split('·').pop().trim():'按备餐时间'):slot.label.slice(6);const group=groups.find(item=>item.date===date)||groups[groups.push({date,times:[],slots:[]})-1];group.times.push(time);group.slots.push(slot);}return groups;}
 function pickupState(slots,selectedAt){const list=slots.length?slots:[{label:'尽快取餐',at:null}];const groups=slotGroups(list);let dateIndex=0,timeIndex=0;groups.forEach((group,index)=>{const found=group.slots.findIndex(slot=>(slot.at??null)===(selectedAt??null));if(found>=0){dateIndex=index;timeIndex=found;}});const slot=groups[dateIndex].slots[timeIndex];return {pickupSlots:list,pickupLabels:list.map(item=>item.label),pickupDates:groups.map(group=>group.date),pickupTimes:groups[dateIndex].times,pickupRange:[groups.map(group=>group.date),groups[dateIndex].times],pickupColumnIndex:[dateIndex,timeIndex],pickupSlotIndex:Math.max(0,list.findIndex(item=>(item.at??null)===(slot.at??null))),pickupLabel:slot.label};}
 function buyerSlots(settings){if(Array.isArray(settings?.pickupSlots)&&settings.pickupSlots.length>1)return settings.pickupSlots;try{return shopSettings.pickupSlots(settings,Date.now());}catch(e){return [{label:'尽快取餐',at:null}];}}

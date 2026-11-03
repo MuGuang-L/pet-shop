@@ -1,5 +1,6 @@
 (function(root,factory){if(typeof module==='object'&&module.exports)module.exports=factory();else root.Studio=factory();})(this,function(){
 const assets=[['kigi-cat-cute','可爱猫咪入口图','分类'],['kigi-dog-cute','可爱狗狗入口图','分类'],['kigi-cafe-hero','猫咪咖啡师与烘焙小狗','横幅'],['kigi-logo','商家官方标志','品牌'],['hero-v2','猫狗日常','横幅'],['hero-calm-v3','午后猫咪','横幅'],['cat-v2','猫咪肖像','分类'],['dog-v2','狗狗肖像','分类'],['food-v2','主粮示意','商品'],['toy-v2','绳结玩具','商品'],['care-v2','日常梳理','商品'],['empty-v2','猫咪与收纳篮','场景'],['bowl-v3','陶瓷食碗','商品'],['bed-v3','柔软窝垫','商品'],['snack-v3','冻干零食','商品']].map(([id,name,kind])=>({id,name,kind,src:'/assets/'+id+(['kigi-cat-cute','kigi-dog-cute'].includes(id)?'.png':'.jpg')}));
+assets.push({id:'catalog-bakery',name:'手作烘焙插画示意',kind:'商品',src:'/assets/catalog-bakery.jpg'});
 const slots=[{key:'hero',name:'首页主视觉',hint:'建议横向构图，左侧留空放标题'},{key:'cat',name:'猫咪用品入口图片',hint:'建议正方形，主体居中'},{key:'dog',name:'狗狗用品入口图片',hint:'建议正方形，主体居中'},{key:'care',name:'清洁分类图片',hint:'建议正方形，主体居中'},{key:'toy',name:'全部好物图片',hint:'建议正方形，主体居中'},{key:'avatar',name:'个人中心欢迎图',hint:'建议正方形，主体居中'},{key:'empty',name:'空购物车图片',hint:'建议清晰简洁的场景图片'}];
 function resolveStorefront(saved={}){const result={...defaults,...saved};const path=String(result.hero||'').replace(/^https?:\/\/[^/]+/,'').split(/[?#]/)[0];if(!path||['/assets/hero.png','/assets/hero.jpg','/assets/hero-v2.jpg','/assets/hero-calm-v3.jpg','/assets/kigi-cafe-hero.jpg'].includes(path))result.hero=defaults.hero;for(const slot of ['cat','dog']){const savedPath=String(result[slot]||'').replace(/^https?:\/\/[^/]+/,'').split(/[?#]/)[0];if(!savedPath||['/assets/'+slot+'.png','/assets/'+slot+'.jpg','/assets/'+slot+'-v2.jpg',defaults[slot]].includes(savedPath))result[slot]=defaults[slot];}return result;} const defaults={hero:'/assets/kigi-cafe-hero.jpg',cat:'/assets/kigi-cat-cute.png',dog:'/assets/kigi-dog-cute.png',care:'/assets/care-v2.jpg',toy:'/assets/toy-v2.jpg',avatar:'/assets/kigi-logo.jpg',empty:'/assets/empty-v2.jpg'};
 const afterStages={REQUESTED:'售后待审核',REJECTED:'售后已拒绝',WITHDRAWN:'售后已撤回',WAIT_RETURN:'待买家退货',RETURN_TRANSIT:'退货待验收',WAIT_REFUND:'待退款记录',REFUND_FAILED:'退款记录失败',SUCCEEDED:'退款完成'};
@@ -40,7 +41,7 @@ for(const [id,petScope,category,productName,base] of categoryDrafts){
  assets.push({id:'catalog-'+id,name:petScope+' · '+productName+'示意',kind:'商品',src:'/assets/catalog-'+id+'.jpg'});
  templates.push({...original,id,name:productName,hint:petScope+' · '+category,petScope,productName,image:'catalog-'+id,spec:'请填写实际规格'});
 }
-templates.unshift({id:'bakery',name:'手作烘焙',hint:'面包 / 蛋糕 / 点心 · 到店自提',category:'烘焙',petScope:'不适用',image:'empty-v2',spec:'单份',fields:'口味与净含量：\n配料与过敏原：\n保质期与储存方式：\n取餐说明：'});
+templates.unshift({id:'bakery',name:'手作烘焙',hint:'面包 / 蛋糕 / 点心 · 到店自提',category:'烘焙',petScope:'不适用',image:'catalog-bakery',spec:'单份',fields:'口味与净含量：\n配料与过敏原：\n保质期与储存方式：\n取餐说明：'});
 for(const [id,name] of [['americano','美式咖啡'],['latte','拿铁咖啡']]){
  assets.push({id:'catalog-'+id,name:name+'示意',kind:'商品',src:'/assets/catalog-'+id+'.jpg'});
  templates.push({id,name,productName:name,hint:'咖啡 · 到店自提',category:'咖啡',petScope:'不适用',image:'catalog-'+id,spec:'请填写杯型和冷热',fields:'杯型与容量：\n冷热选择：\n咖啡豆信息：\n配料与过敏原：\n制作与取餐说明：'});
