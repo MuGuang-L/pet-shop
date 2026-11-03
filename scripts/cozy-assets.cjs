@@ -34,5 +34,9 @@ const targets={
    await pipeline.toFile(path.join(assets,filename));
   }
  }
+ // Preserve the immutable upload path already saved on the croissant product.
+ // Cloud clients without assetBase resolve this URL from their local package.
+ const uploads=path.join(root,'miniprogram/uploads');fs.mkdirSync(uploads,{recursive:true});
+ fs.copyFileSync(path.join(assets,'catalog-bakery.jpg'),path.join(uploads,'f3c92c8e-9955-438a-85a2-ef265aa8ddd9.jpg'));
  console.log('Compressed',manifest.length,'originals; linked assets:',Object.values(targets).flat().length);
 })();
