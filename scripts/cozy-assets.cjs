@@ -28,9 +28,9 @@ const targets={
   if(item.source&&path.resolve(item.source)!==path.resolve(original))fs.copyFileSync(item.source,original);
   for(const filename of targets[item.id]||[]){
    const png=filename.endsWith('.png');
-   const width=item.id.startsWith('nav-')?112:png?(filename.startsWith('kigi-')?280:item.id==='hero'?480:200):item.id==='hero'?1080:420;
+   const width=item.id.startsWith('nav-')?96:png?(filename.startsWith('kigi-')?240:item.id==='hero'?320:180):item.id==='hero'?800:320;
    let pipeline=sharp(original).resize({width,withoutEnlargement:true});
-   pipeline=png?pipeline.png({palette:true,colours:64,effort:10}):pipeline.jpeg({quality:76,mozjpeg:true});
+   pipeline=png?pipeline.png({palette:true,colours:48,effort:10}):pipeline.jpeg({quality:68,mozjpeg:true});
    await pipeline.toFile(path.join(assets,filename));
   }
  }
