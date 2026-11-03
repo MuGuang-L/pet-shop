@@ -1,0 +1,9 @@
+{
+  "name": "黄油可颂",
+  "category": "烘焙",
+  "petScope": "不适用",
+  "image": "/assets/catalog-bakery.jpg",
+  "description": "黄油可颂，单只装，到店自提。图片为 AI 手绘示意图，实际外观以门店出品为准。配料、过敏原和保存方式请以门店实际说明为准。",
+  "active": true,
+  "skus": [{"id": "launch-butter-croissant", "name": "单只", "price": 1200, "stock": 20}]
+}

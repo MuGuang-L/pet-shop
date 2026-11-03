@@ -1,0 +1,223 @@
+[
+  {
+    "id": "p20",
+    "name": "猫咪干粮",
+    "category": "主粮",
+    "petScope": "猫咪",
+    "description": "猫咪干粮，适用于猫咪的日常喂养。规格：1 kg / 袋。图片为 AI 示意图，请以门店实际商品的包装、颜色和标注为准；如需核对具体款式、适用年龄或尺寸，请下单前联系商家。",
+    "image": "/assets/catalog-cat-food.jpg",
+    "active": true,
+    "skus": [
+      {
+        "id": "launch-cat-food",
+        "name": "1 kg / 袋",
+        "price": 3990,
+        "stock": 5
+      }
+    ]
+  },
+  {
+    "id": "p22",
+    "name": "猫咪冻干零食",
+    "category": "零食",
+    "petScope": "猫咪",
+    "description": "猫咪冻干零食，适用于猫咪的日常喂养。规格：50 g / 袋。图片为 AI 示意图，请以门店实际商品的包装、颜色和标注为准；如需核对具体款式、适用年龄或尺寸，请下单前联系商家。",
+    "image": "/assets/catalog-cat-snack.jpg",
+    "active": true,
+    "skus": [
+      {
+        "id": "launch-cat-snack",
+        "name": "50 g / 袋",
+        "price": 1990,
+        "stock": 5
+      }
+    ]
+  },
+  {
+    "id": "p24",
+    "name": "逗猫棒",
+    "category": "玩具",
+    "petScope": "猫咪",
+    "description": "逗猫棒，适用于猫咪的日常使用。规格：单支。图片为 AI 示意图，请以门店实际商品的包装、颜色和标注为准；如需核对具体款式、适用年龄或尺寸，请下单前联系商家。",
+    "image": "/assets/catalog-cat-toy.jpg",
+    "active": true,
+    "skus": [
+      {
+        "id": "launch-cat-toy",
+        "name": "单支",
+        "price": 1590,
+        "stock": 4
+      }
+    ]
+  },
+  {
+    "id": "p26",
+    "name": "颗粒猫砂",
+    "category": "清洁",
+    "petScope": "猫咪",
+    "description": "颗粒猫砂，适用于猫咪的日常使用。规格：6 L / 袋。图片为 AI 示意图，请以门店实际商品的包装、颜色和标注为准；如需核对具体款式、适用年龄或尺寸，请下单前联系商家。",
+    "image": "/assets/catalog-cat-clean.jpg",
+    "active": true,
+    "skus": [
+      {
+        "id": "launch-cat-clean",
+        "name": "6 L / 袋",
+        "price": 2990,
+        "stock": 5
+      }
+    ]
+  },
+  {
+    "id": "p28",
+    "name": "陶瓷猫食碗",
+    "category": "用品",
+    "petScope": "猫咪",
+    "description": "陶瓷猫食碗，适用于猫咪的日常使用。规格：单个。图片为 AI 示意图，请以门店实际商品的包装、颜色和标注为准；如需核对具体款式、适用年龄或尺寸，请下单前联系商家。",
+    "image": "/assets/catalog-cat-supply.jpg",
+    "active": true,
+    "skus": [
+      {
+        "id": "launch-cat-supply",
+        "name": "单个",
+        "price": 2590,
+        "stock": 5
+      }
+    ]
+  },
+  {
+    "id": "p30",
+    "name": "狗狗干粮",
+    "category": "主粮",
+    "petScope": "狗狗",
+    "description": "狗狗干粮，适用于狗狗的日常喂养。规格：1 kg / 袋。图片为 AI 示意图，请以门店实际商品的包装、颜色和标注为准；如需核对具体款式、适用年龄或尺寸，请下单前联系商家。",
+    "image": "/assets/catalog-dog-food.jpg",
+    "active": true,
+    "skus": [
+      {
+        "id": "launch-dog-food",
+        "name": "1 kg / 袋",
+        "price": 3990,
+        "stock": 5
+      }
+    ]
+  },
+  {
+    "id": "p32",
+    "name": "狗狗肉干零食",
+    "category": "零食",
+    "petScope": "狗狗",
+    "description": "狗狗肉干零食，适用于狗狗的日常喂养。规格：100 g / 袋。图片为 AI 示意图，请以门店实际商品的包装、颜色和标注为准；如需核对具体款式、适用年龄或尺寸，请下单前联系商家。",
+    "image": "/assets/catalog-dog-snack.jpg",
+    "active": true,
+    "skus": [
+      {
+        "id": "launch-dog-snack",
+        "name": "100 g / 袋",
+        "price": 1990,
+        "stock": 5
+      }
+    ]
+  },
+  {
+    "id": "p34",
+    "name": "棉绳结玩具",
+    "category": "玩具",
+    "petScope": "狗狗",
+    "description": "棉绳结玩具，适用于狗狗的日常使用。规格：单个。图片为 AI 示意图，请以门店实际商品的包装、颜色和标注为准；如需核对具体款式、适用年龄或尺寸，请下单前联系商家。",
+    "image": "/assets/catalog-dog-toy.jpg",
+    "active": true,
+    "skus": [
+      {
+        "id": "launch-dog-toy",
+        "name": "单个",
+        "price": 1990,
+        "stock": 5
+      }
+    ]
+  },
+  {
+    "id": "p36",
+    "name": "犬用洗护液",
+    "category": "清洁",
+    "petScope": "狗狗",
+    "description": "犬用洗护液，适用于狗狗的日常使用。规格：500 mL / 瓶。图片为 AI 示意图，请以门店实际商品的包装、颜色和标注为准；如需核对具体款式、适用年龄或尺寸，请下单前联系商家。",
+    "image": "/assets/catalog-dog-clean.jpg",
+    "active": true,
+    "skus": [
+      {
+        "id": "launch-dog-clean",
+        "name": "500 mL / 瓶",
+        "price": 2990,
+        "stock": 5
+      }
+    ]
+  },
+  {
+    "id": "p38",
+    "name": "胸背牵引套装",
+    "category": "用品",
+    "petScope": "狗狗",
+    "description": "胸背牵引套装，适用于狗狗的日常使用。规格：胸背及牵引绳 / 套。图片为 AI 示意图，请以门店实际商品的包装、颜色和标注为准；如需核对具体款式、适用年龄或尺寸，请下单前联系商家。",
+    "image": "/assets/catalog-dog-supply.jpg",
+    "active": true,
+    "skus": [
+      {
+        "id": "launch-dog-supply",
+        "name": "胸背及牵引绳 / 套",
+        "price": 3990,
+        "stock": 5
+      }
+    ]
+  },
+  {
+    "id": "p40",
+    "name": "美式咖啡",
+    "category": "咖啡",
+    "petScope": "不适用",
+    "description": "美式咖啡，门店制作，仅支持到店自提。含咖啡因。图片为 AI 示意图，出杯容器与拉花可能不同。",
+    "image": "/assets/catalog-americano.jpg",
+    "active": true,
+    "skus": [
+      {
+        "id": "launch-americano",
+        "name": "冰美式 / 标准杯",
+        "price": 1500,
+        "stock": 20
+      }
+    ]
+  },
+  {
+    "id": "p42",
+    "name": "拿铁咖啡",
+    "category": "咖啡",
+    "petScope": "不适用",
+    "description": "拿铁咖啡，门店制作，仅支持到店自提。含牛奶；对乳制品过敏者请勿选购。图片为 AI 示意图，出杯容器与拉花可能不同。",
+    "image": "/assets/catalog-latte.jpg",
+    "active": true,
+    "skus": [
+      {
+        "id": "launch-latte",
+        "name": "热拿铁 / 标准杯",
+        "price": 2000,
+        "stock": 20
+      }
+    ]
+  },
+  {
+    "id": "local-croissant",
+    "name": "黄油可颂",
+    "category": "烘焙",
+    "petScope": "不适用",
+    "description": "黄油可颂，单只装，到店自提。图片为 AI 手绘示意图，实际外观以门店出品为准。配料、过敏原和保存方式请以门店实际说明为准。",
+    "image": "/assets/catalog-bakery.jpg",
+    "active": true,
+    "skus": [
+      {
+        "id": "launch-butter-croissant",
+        "name": "单只",
+        "price": 1200,
+        "stock": 20
+      }
+    ]
+  }
+]

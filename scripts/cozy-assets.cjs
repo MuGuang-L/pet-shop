@@ -24,7 +24,7 @@ const targets={
 };
 (async()=>{
  for(const item of manifest){
-  const original=path.join(source,item.id+'.png');
+  const original=path.join(source,item.original||item.id+'.png');
   if(item.source&&path.resolve(item.source)!==path.resolve(original))fs.copyFileSync(item.source,original);
   for(const filename of targets[item.id]||[]){
    const png=filename.endsWith('.png');
