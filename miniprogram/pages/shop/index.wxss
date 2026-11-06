@@ -26,3 +26,28 @@
 
 /* Keep local component rules in the warm palette. */
 .shop-section-tabs{gap:24rpx;border-bottom:1rpx solid #e9dbc5}.shop-section-tabs button{font-family:KigiTitle,sans-serif;font-weight:400;color:#98775a;font-size:34rpx}.shop-section-tabs button.chosen{color:#a85a32;font-weight:400}.shop-section-tabs button.chosen::after{background:#c99254;width:48rpx;margin-left:-24rpx}.pet-filter-tabs button{background:#f5ead7;color:#997758}.pet-filter-tabs button.chosen{background:#edcea1;color:#81502c}.coffee-pickup-caption{color:#98704c;background:#f9edda;margin:0 0 20rpx}.delivery-timeline-card,.express-card{background:#fffdf6}.delivery-event-current .delivery-event-title,.delivery-event-current .delivery-event-time{color:#a36a3f}
+
+.brand .contact-entry {
+  align-self: flex-start;
+  flex: none;
+  width: auto;
+  min-width: 152rpx;
+  height: 42rpx;
+  line-height: 42rpx;
+  margin: 0 0 0 auto;
+  padding: 0 18rpx;
+  white-space: nowrap;
+  font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-size: 28rpx;
+  font-weight: 600;
+  letter-spacing: 1rpx;
+  color: #965022;
+  background: #fff8e9;
+  border-radius: 28rpx;
+}
+.contact-overlay { align-items: center; justify-content: center; }
+.contact-card { width: 540rpx; max-width: 86vw; box-sizing: border-box; padding: 28rpx; border-radius: 24rpx; background: #fff; text-align: center; }
+.contact-card image { display: block; width: 100%; height: 610rpx; max-height: 56vh; margin: 16rpx auto; }
+.service-pair image { width: 112rpx; height: 112rpx; }
+
+.hero-copy .hero-subtitle { position: relative; top: -14rpx; }
