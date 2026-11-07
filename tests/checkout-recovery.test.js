@@ -23,3 +23,9 @@ test('完成记录写入失败，重试保留原幂等键，新增购物车商�
  const result=await f.checkout.submit('scope',call,[line,{productId:'care',skuId:'care-1',qty:2}]);
  assert.deepEqual(keys,[input.key,input.key]);assert.equal(result.cart.length,1);assert.equal(result.cart[0].productId,'care');
 });
+
+test('同一规格的不同饮品搭配结算恢复时只扣对应数量，选项顺序不影响匹配',async()=>{
+ const f=fixture(),a={...line,selections:[{groupId:'milk',optionId:'oat'},{groupId:'temperature',optionId:'hot'}]},b={...line,selections:[{groupId:'milk',optionId:'cow'},{groupId:'temperature',optionId:'hot'}]};
+ f.checkout.write('scope',{input:{...input,lines:[a]}});const result=await f.checkout.submit('scope',async()=>({id:'drink-order'}),[{...a,qty:3,selections:a.selections.slice().reverse()},{...b,qty:2}]);
+ assert.equal(result.cart.length,2);assert.equal(result.cart[0].qty,2);assert.equal(result.cart[1].qty,2);
+});

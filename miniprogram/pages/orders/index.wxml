@@ -1,9 +1,9 @@
 <template name="buyer-order-card">
  <view class="purchase-card" data-id="{{purchase.id}}" bindtap="showOrder">
   <view class="purchase-head"><text class="purchase-store">奇迹空间 <text class="purchase-mode">{{purchase.fulfillmentText}}</text></text><text class="purchase-status">{{purchase.statusText}}</text></view>
-  <view class="muted">订单 {{purchase.orderNo || purchase.id}} · {{purchase.orderDateText}}</view><view class="purchase-line" wx:for="{{purchase.lines}}" wx:key="skuId">
+  <view class="muted">订单 {{purchase.orderNo || purchase.id}} · {{purchase.orderDateText}}</view><view class="purchase-line" wx:for="{{purchase.lines}}" wx:key="lineKey">
    <image src="{{item.displayImage}}" mode="aspectFill"/>
-   <view class="purchase-copy"><view class="purchase-name">{{item.name}}</view><text class="purchase-spec">{{item.spec}}</text></view>
+   <view class="purchase-copy"><view class="purchase-name">{{item.name}}</view><text class="purchase-spec">{{item.spec}}</text><view wx:if="{{item.optionsText}}" class="purchase-spec">{{item.optionsText}}</view></view>
    <view class="purchase-numbers"><text>¥{{item.unitText}}</text><text class="purchase-qty">×{{item.qty}}</text></view>
   </view>
   <view wx:if="{{purchase.issueInfo && purchase.issueInfo.status === 'OPEN'}}" class="buyer-issue-note">{{purchase.issueInfo.note}}</view>
