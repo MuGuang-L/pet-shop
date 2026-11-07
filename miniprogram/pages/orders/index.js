@@ -7,7 +7,7 @@ Page({
  onHide(){this.requestEpoch++;this.setData({busy:false,orders:[],page:0,pages:0,total:0});},
  onUnload(){this.requestEpoch++;this.data.busy=false;},
  data:{rootEntry:false,orders:[],query:'',fulfillment:'ALL',status:'ALL',filters:[{id:'ALL',name:'全部'},{id:'PENDING',name:'待付款'},{id:'PAID',name:'备货中'},{id:'SHIPPED',name:'配送中'},{id:'COMPLETED',name:'已完成'},{id:'AFTERSALE',name:'售后'}],page:0,pages:0,total:0,busy:false,error:'',loginRequired:false},
- onLoad(options={}){this.setData({rootEntry:typeof getCurrentPages!=='function'||getCurrentPages().length<2,status:this.data.filters.some(f=>f.id===options.status)?options.status:'ALL',fulfillment:['PICKUP','DELIVERY'].includes(options.fulfillment)?options.fulfillment:'ALL'});},
+ onLoad(options={}){this.setData({rootEntry:typeof getCurrentPages!=='function'||getCurrentPages().length<2,status:this.data.filters.some(f=>f.id===options.status)?options.status:'ALL',fulfillment:['DINE_IN','PICKUP','DELIVERY'].includes(options.fulfillment)?options.fulfillment:'ALL'});},
  queryInput(e){this.setData({query:e.detail.value});},
  search(){return this.load();},
  clearScope(){this.setData({fulfillment:'ALL'});return this.load();},

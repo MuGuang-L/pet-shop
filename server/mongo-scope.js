@@ -51,7 +51,7 @@ async function loadScope(store,session,actor,action,input,options,hash){
   const match={'value.lines.productId':{$in:productIds},'value.released':{$ne:true},_id:{$nin:docs.orders.map(d=>d._id)}};
   const reserved=await store.read('orders').aggregate([
    {$match:{...match,$or:[{status:{$in:['PENDING','PAID']}},{status:{$in:['REFUND_REQUESTED','REFUNDING','REFUNDED']},'value.refund.previous':'PAID'}]}},
-   {$unwind:'$value.lines'},{$match:{'value.lines.productId':{$in:productIds}}},
+   {$unwind:'$value.lines'},{$match:{'value.lines.productId':{$in:productIds},'value.lines.stockTracked':{$ne:false}}},
    {$group:{_id:{productId:'$value.lines.productId',skuId:'$value.lines.skuId'},quantity:{$sum:'$value.lines.qty'}}}
   ],{session}).toArray();
   context.reservations=Object.fromEntries(reserved.map(r=>[JSON.stringify([r._id.productId,r._id.skuId]),r.quantity]));
@@ -62,7 +62,7 @@ async function loadScope(store,session,actor,action,input,options,hash){
    ],{session}).toArray();context.protectedSkus=protectedRows.map(r=>r._id);
   }
  }
- if(action==='createOrder'&&input.fulfillment==='PICKUP'&&!docs.idempotency_keys.length){
+ if(action==='createOrder'&&['DINE_IN','PICKUP'].includes(input.fulfillment)&&!docs.idempotency_keys.length){
   for(let attempt=0;attempt<20;attempt++){
    const code=String(randomInt(100000,1000000));
    if(!await db.collection('orders').findOne({'value.fulfillment.code':code,status:{$in:activePickup}},{session,projection:{_id:1}})){context.pickupCode=code;break;}

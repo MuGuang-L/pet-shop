@@ -8,7 +8,7 @@
   </view>
   <view wx:if="{{purchase.issueInfo && purchase.issueInfo.status === 'OPEN'}}" class="buyer-issue-note">{{purchase.issueInfo.note}}</view>
   <view class="purchase-total"><text>共 {{purchase.itemCount}} 件</text><text>合计 <text class="purchase-amount">¥{{purchase.totalText}}</text></text></view>
-  <view class="purchase-footer"><text wx:if="{{purchase.status === 'PENDING' && purchase.remainingText}}" class="purchase-clock">{{purchase.remainingText}}</text><button data-id="{{purchase.id}}" data-section="{{purchase.primaryAction.section}}" catchtap="showOrder" class="purchase-action {{purchase.status === 'PENDING' ? 'purchase-action-primary' : ''}}">{{purchase.primaryAction.label}}</button></view>
+  <view class="purchase-footer"><text wx:if="{{purchase.status === 'PENDING' && purchase.remainingText}}" class="purchase-clock">{{purchase.remainingText}}</text><button wx:if="{{purchase.status === 'PAID' || purchase.status === 'SHIPPED' || purchase.status === 'COMPLETED'}}" data-id="{{purchase.id}}" data-section="aftersale" catchtap="showOrder" class="purchase-action">申请退款</button><button data-id="{{purchase.id}}" data-section="{{purchase.primaryAction.section}}" catchtap="showOrder" class="purchase-action {{purchase.status === 'PENDING' ? 'purchase-action-primary' : ''}}">{{purchase.primaryAction.label}}</button></view>
  </view>
 </template>
 
@@ -17,7 +17,7 @@
 
  <view class="center-tabs"><t-tabs value="{{status}}" bind:change="filter"><t-tab-panel wx:for="{{filters}}" wx:key="id" value="{{item.id}}" label="{{item.name}}" disabled="{{busy}}"/></t-tabs></view>
  <view class="center-search"><input value="{{query}}" bindinput="queryInput" bindconfirm="search" confirm-type="search" placeholder="搜索商品或订单号" maxlength="80"/><t-button variant="text" size="small" bind:tap="search" disabled="{{busy}}">搜索</t-button></view>
- <view wx:if="{{fulfillment !== 'ALL'}}" class="center-scope"><text>{{fulfillment === 'PICKUP' ? '到店自提' : '快递配送'}}</text><t-button size="extra-small" variant="text" bind:tap="clearScope">查看全部</t-button></view>
+ <view wx:if="{{fulfillment !== 'ALL'}}" class="center-scope"><text>{{fulfillment === 'DINE_IN' ? '堂食' : (fulfillment === 'PICKUP' ? '到店自提' : '快递配送')}}</text><t-button size="extra-small" variant="text" bind:tap="clearScope">查看全部</t-button></view>
  <view wx:if="{{error}}" class="center-message" role="alert"><view>{{error}}</view><button bindtap="retry" disabled="{{busy}}">重新加载</button></view>
  <view wx:elif="{{loginRequired}}" class="center-message"><view>请先进入店铺登录，再查看本人订单。</view><button bindtap="shop">进入店铺</button></view>
  <view wx:elif="{{!busy && !orders.length}}" class="center-message"><image class="center-empty-art" src="/assets/empty.png" mode="aspectFit"/><view class="empty-title">还没有相关订单呀</view><t-button theme="primary" variant="outline" size="small" bind:tap="shop">去逛逛</t-button></view>

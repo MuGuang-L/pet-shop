@@ -1,7 +1,7 @@
 const test=require('node:test'),assert=require('node:assert/strict'),vm=require('node:vm'),fs=require('node:fs');
 const studio=require('../miniprogram/lib/studio');
 const event=dataset=>({currentTarget:{dataset}});
-function fixture(){let p;const app={globalData:{orderEntry:null}};const calls=[],modals=[],storage={},products=[{id:'p',name:'测试商品',category:'用品',description:'日常用品',image:'/assets/toy-v2.jpg',skus:[{id:'s',name:'标准',price:2000,stock:3}]}],addresses=[{id:'a',name:'测试',phone:'13800000000',detail:'虚构街道 1 号'}];const settings=require('../cloudfunctions/shop/shop-settings').publicSettings(require('../cloudfunctions/shop/domain').seed(),Date.now());const api={mode:'api',hasSession:()=>true,checkoutScope:()=>'buyer-flow-checkout',call:async(action,input)=>{calls.push({action,input});if(action==='quoteOrder'){const subtotal=input.lines.reduce((sum,l)=>sum+products.find(p=>p.id===l.productId).skus.find(k=>k.id===l.skuId).price*l.qty,0),shippingFee=input.fulfillment==='PICKUP'?0:800;return {subtotal,shippingFee,total:subtotal+shippingFee,fulfillment:input.fulfillment,settingsRevision:settings.revision,pickupStore:settings.pickupStore,delivery:settings.delivery};}return ({shopSettings:settings,catalog:products,addresses,identity:{merchant:false,phone:'13800000000'},storefront:studio.defaults,homeContent:studio.homeDefaults,saveAddress:addresses[0],ordersPage:{items:[],page:1,pages:1,total:0}})[action];}};const wx={getStorageSync:k=>storage[k],setStorageSync:(k,v)=>storage[k]=v,showToast(){},showModal:o=>{modals.push(o.content);o.success?.({confirm:wx.accept!==false});},stopPullDownRefresh(){}};const helper={module:{exports:{}},wx};vm.runInNewContext(fs.readFileSync(require.resolve('../miniprogram/services/checkout'),'utf8'),helper);const ctx={getApp:()=>app,Page:d=>p=d,require:n=>n.includes('order-display')?require('../miniprogram/services/order-display'):n.includes('studio')?studio:n.includes('checkout')?helper.module.exports:api,wx,setInterval:()=>1,clearInterval(){}};vm.runInNewContext(fs.readFileSync(require.resolve('../miniprogram/pages/shop/index'),'utf8'),ctx);p.setData=function(values){for(const [key,value] of Object.entries(values)){const parts=key.replace(/\[(\d+)\]/g,'.$1').split('.');let obj=this.data;for(const k of parts.slice(0,-1))obj=obj[k]||(obj[k]={});obj[parts.at(-1)]=value;}};return {p,api,wx,calls,modals,products,addresses,app};}
+function fixture(deliveryMode='DELIVERY'){let p;const app={globalData:{orderEntry:null}};const calls=[],modals=[],storage={},products=[{id:'p',name:'测试商品',category:'用品',description:'日常用品',image:'/assets/toy-v2.jpg',skus:[{id:'s',name:'标准',price:2000,stock:3}]}],addresses=[{id:'a',name:'测试',phone:'13800000000',detail:'虚构街道 1 号'}];const settings=require('../cloudfunctions/shop/shop-settings').publicSettings(require('../cloudfunctions/shop/domain').seed(),Date.now());const api={mode:'api',hasSession:()=>true,checkoutScope:()=>'buyer-flow-checkout',call:async(action,input)=>{calls.push({action,input});if(action==='quoteOrder'){const subtotal=input.lines.reduce((sum,l)=>sum+products.find(p=>p.id===l.productId).skus.find(k=>k.id===l.skuId).price*l.qty,0),shippingFee=input.fulfillment==='DELIVERY'?800:0;return {subtotal,shippingFee,total:subtotal+shippingFee,fulfillment:input.fulfillment,settingsRevision:settings.revision,pickupStore:settings.pickupStore,delivery:settings.delivery};}return ({shopSettings:settings,catalog:products,addresses,identity:{merchant:false,phone:'13800000000'},storefront:studio.defaults,homeContent:studio.homeDefaults,saveAddress:addresses[0],ordersPage:{items:[],page:1,pages:1,total:0}})[action];}};const wx={getStorageSync:k=>storage[k],setStorageSync:(k,v)=>storage[k]=v,showToast(){},showModal:o=>{modals.push(o.content);o.success?.({confirm:wx.accept!==false});},stopPullDownRefresh(){}};const helper={module:{exports:{}},wx};vm.runInNewContext(fs.readFileSync(require.resolve('../miniprogram/services/checkout'),'utf8'),helper);const ctx={getApp:()=>app,Page:d=>p=d,require:n=>n.includes('order-display')?require('../miniprogram/services/order-display'):n.includes('studio')?studio:n.includes('checkout')?helper.module.exports:api,wx,setInterval:()=>1,clearInterval(){}};vm.runInNewContext(fs.readFileSync(require.resolve('../miniprogram/pages/shop/index'),'utf8'),ctx);p.setData=function(values){for(const [key,value] of Object.entries(values)){const parts=key.replace(/\[(\d+)\]/g,'.$1').split('.');let obj=this.data;for(const k of parts.slice(0,-1))obj=obj[k]||(obj[k]={});obj[parts.at(-1)]=value;}};if(deliveryMode)p.data.deliveryMode=deliveryMode;return {p,api,wx,calls,modals,products,addresses,app};}
 async function idle(p){for(let i=0;i<50&&p.data.busy;i++)await new Promise(r=>setImmediate(r));assert.equal(p.data.busy,false);}
 const refreshedOrder={id:'refresh-order',status:'SHIPPED',lines:[],subtotal:0,total:800,shippingFee:800,createdAt:1,updatedAt:2,shipping:{number:'SIM-DELIVERY'},fulfillment:{type:'DELIVERY'}};
 for(const trigger of ['onShow','onPullDownRefresh','retry'])test('小程序 '+trigger+' 同步当前订单详情和列表，保留未提交售后内容',async()=>{
@@ -61,7 +61,7 @@ test('从购物车选地址和新增地址后回到结算',async()=>{const {p}=f
 test('用户取消确认框时不发送取消或收货请求',async()=>{const {p,wx,calls}=fixture();wx.accept=false;p.data.selectedOrder={id:'order'};p.action(event({action:'cancel'}));await idle(p);p.action(event({action:'confirmReceipt'}));await idle(p);assert.ok(!calls.some(c=>['cancel','confirmReceipt'].includes(c.action)));});
 test('商品按价格排序并筛除无货，描述也可搜索',async()=>{const {p,products}=fixture();products.push({id:'p2',name:'第二件',description:'关键字',category:'用品',skus:[{id:'s2',name:'小号',price:500,stock:0}]});await p.refresh();p.shopSection(event({value:'pet'}));p.sortProducts({detail:{value:'1'}});assert.equal(p.data.visible[0].id,'p2');p.stockFilter({detail:{value:true}});assert.equal(p.data.visible.length,1);p.stockFilter({detail:{value:false}});p.searchProducts({detail:{value:'关键字'}});assert.equal(p.data.visible[0].id,'p2');});
 test('401被识别为重新登录，清除过期会话',async()=>{const storage={'pet-shop-session-v2':{apiBase:'https://shop.example.test',token:'expired'}},wx={getStorageSync:k=>storage[k],removeStorageSync:k=>delete storage[k],request:o=>o.success({statusCode:401,data:{ok:false,error:'unauthorized'}})};const context={wx,module:{exports:{}},require:()=>({apiBase:'https://shop.example.test'})};vm.runInNewContext(fs.readFileSync(require.resolve('../miniprogram/services/api'),'utf8'),context);await assert.rejects(context.module.exports.call('catalog'),e=>e.code==='AUTH_REQUIRED');assert.equal(storage['pet-shop-session-v2'],undefined);});
-function acceptOrders(f,{failOnce=false}={}){const original=f.api.call;f.api.call=async(action,input)=>{if(action!=='createOrder')return original(action,input);f.calls.push({action,input});if(failOnce){failOnce=false;throw Error('测试网络故障');}const lines=input.lines.map(l=>{const p=f.products.find(p=>p.id===l.productId),sku=p.skus.find(s=>s.id===l.skuId);return {...l,name:p.name,spec:sku.name,price:sku.price};}),subtotal=lines.reduce((n,l)=>n+l.price*l.qty,0),shippingFee=input.fulfillment==='PICKUP'?0:800;return {id:'test-order',lines,subtotal,shippingFee,total:subtotal+shippingFee,status:'PENDING',address:f.addresses[0],fulfillment:{type:input.fulfillment},createdAt:Date.UTC(2026,9,24,10),updatedAt:Date.UTC(2026,9,24,10),expiresAt:Date.UTC(2026,9,24,10,15)};};}
+function acceptOrders(f,{failOnce=false}={}){const original=f.api.call;f.api.call=async(action,input)=>{if(action!=='createOrder')return original(action,input);f.calls.push({action,input});if(failOnce){failOnce=false;throw Error('测试网络故障');}const lines=input.lines.map(l=>{const p=f.products.find(p=>p.id===l.productId),sku=p.skus.find(s=>s.id===l.skuId);return {...l,name:p.name,spec:sku.name,price:sku.price};}),subtotal=lines.reduce((n,l)=>n+l.price*l.qty,0),shippingFee=input.fulfillment==='DELIVERY'?800:0;return {id:'test-order',lines,subtotal,shippingFee,total:subtotal+shippingFee,status:'PENDING',address:f.addresses[0],fulfillment:{type:input.fulfillment},createdAt:Date.UTC(2026,9,24,10),updatedAt:Date.UTC(2026,9,24,10),expiresAt:Date.UTC(2026,9,24,10,15)};};}
 test('勾选部分商品结算只提交所选，未勾选商品完整保留',async()=>{const f=fixture(),{p,products,calls}=f;products.push({id:'other',name:'另一件',category:'用品',skus:[{id:'other-s',name:'标准',price:1000,stock:5}]});p.data.cart=[{productId:'p',skuId:'s',qty:1},{productId:'other',skuId:'other-s',qty:2,selected:false}];await p.refresh();acceptOrders(f);p.prepareCheckout();assert.equal(p.data.tab,'checkout');assert.equal(p.data.selectedCount,1);p.checkout();await idle(p);assert.equal(calls.find(c=>c.action==='createOrder').input.lines.length,1);assert.equal(p.data.cart.length,1);assert.equal(p.data.cart[0].skuId,'other-s');assert.equal(p.data.cart[0].qty,2);});
 test('立即购买同一规格也不累加或清空原购物车',async()=>{const f=fixture(),{p,calls}=f;p.data.cart=[{productId:'p',skuId:'s',qty:2}];await p.refresh();p.detail(event({id:'p'}));p.setData({detailQty:1});p.buy();assert.equal(p.data.checkoutSource,'quick');assert.equal(p.data.cart[0].qty,2);assert.equal(p.data.checkoutLines[0].qty,1);acceptOrders(f);p.checkout();await idle(p);assert.equal(calls.find(c=>c.action==='createOrder').input.lines[0].qty,1);assert.equal(p.data.cart[0].qty,2);});
 test('无地址直接进入新增表单，保存后回确认订单并选中新地址',async()=>{const f=fixture(),{p,addresses,calls}=f;addresses.length=0;p.data.cart=[{productId:'p',skuId:'s',qty:1}];await p.refresh();p.prepareCheckout();p.checkout();await idle(p);assert.equal(p.data.tab,'addresses');assert.equal(p.data.addressEditing,true);assert.ok(!calls.some(c=>c.action==='createOrder'));addresses.push({id:'new-address',name:'测试',phone:'13800000000',detail:'虚构街道2号'});p.saveAddress();await idle(p);assert.equal(p.data.tab,'checkout');assert.equal(p.data.selectedAddress.id,'new-address');});
@@ -149,4 +149,66 @@ test('首次结算用微信快速验证手机号，取消不进入结算，成�
  p.bindWechatPhone({detail:{errno:1400001,errMsg:'fail'}});assert.match(modals.at(-1),/次数已用完/);
  p.bindWechatPhone({detail:{code:'a1b2c3d4',errMsg:'getPhoneNumber:ok'}});await idle(p);
  assert.equal(p.data.phonePrompt,false);assert.equal(p.data.tab,'checkout');assert.equal(p.data.boundPhone,'13900001111');assert.equal(p.data.pickupContact.phone,'13900001111');
+});
+
+test('结算默认堂食且无需地址；切换自提保留预约，切回堂食不提交预约时间',async()=>{
+ const f=fixture(null),{p,calls,addresses}=f;assert.equal(p.data.deliveryMode,'DINE_IN');addresses.length=0;
+ p.data.cart=[{productId:'p',skuId:'s',qty:1}];await p.refresh();acceptOrders(f);p.prepareCheckout();assert.equal(p.data.checkoutTotal,'20.00');
+ p.deliveryMode(event({value:'PICKUP'}));assert.equal(p.data.deliveryMode,'PICKUP');p.setData({pickupSlots:[{at:1234,label:'预约'}],pickupSlotIndex:0});
+ p.deliveryMode(event({value:'DINE_IN'}));p.checkout();await idle(p);
+ const input=calls.find(c=>c.action==='createOrder').input;assert.equal(input.fulfillment,'DINE_IN');assert.equal(input.pickupAt,null);assert.equal(input.contact.name,'堂食顾客');assert.equal(input.addressId,undefined);
+ assert.equal(p.data.selectedOrder.isDineIn,true);assert.equal(p.data.selectedOrder.totalText,'20.00');
+});
+
+test('自定义充值拒绝非法金额，重试复用请求号且不擅自换金额',async()=>{
+ const f=fixture(),{p,api,wx,calls,modals}=f;p.setData({member:{tiers:[],terms:'储值说明'}});wx.removeStorageSync=k=>wx.setStorageSync(k,null);
+ const original=api.call;let failed=false;
+ api.call=async(action,input)=>{if(action!=='createRecharge')return original(action,input);calls.push({action,input});if(!failed){failed=true;throw Error('网络中断');}return {id:'recharge-1',kind:'RECHARGE',status:'PENDING',lines:[],total:input.amount,shippingFee:0};};
+ for(const value of ['','0','-1','1.001','1e2','5000.01']){p.setData({customRecharge:value});p.recharge(event({custom:'true'}));await idle(p);}assert.equal(calls.filter(c=>c.action==='createRecharge').length,0);
+ p.customRechargeField({detail:{value:'123.45'}});p.recharge(event({custom:'true'}));await idle(p);assert.match(modals.at(-1),/网络中断/);
+ p.customRechargeField({detail:{value:'124'}});p.recharge(event({custom:'true'}));await idle(p);assert.match(modals.at(-1),/上次充值结果待确认/);
+ p.customRechargeField({detail:{value:'123.45'}});p.recharge(event({custom:'true'}));await idle(p);const topups=calls.filter(c=>c.action==='createRecharge');assert.equal(topups.length,2);assert.equal(topups[0].input.key,topups[1].input.key);assert.equal(topups[1].input.amount,12345);assert.equal(topups[1].input.custom,true);assert.equal(p.data.selectedOrder.kind,'RECHARGE');
+});
+
+test('小程序会员价与购物车、立即购买保持一致，余额耗尽刷新后恢复普通价',async()=>{
+ const f=fixture(null),{p,api,products}=f;products[0].skus[0].memberPrice=1600;const old=api.call;let member=true;
+ api.call=async(action,input)=>action==='identity'?{id:'buyer',merchant:false,phone:'13800000000',isMember:member}:old(action,input);
+ p.data.cart=[{productId:'p',skuId:'s',qty:2}];await p.refresh();assert.equal(p.data.isMember,true);assert.equal(p.data.products[0].priceText,'16.00');assert.equal(p.data.cartTotal,'32.00');assert.equal(p.data.cart[0].price,1600);
+ p.detail(event({id:'p'}));p.buy();assert.equal(p.data.quickLines[0].price,1600);assert.equal(p.data.checkoutTotal,'16.00');
+ member=false;await p.refresh();assert.equal(p.data.isMember,false);assert.equal(p.data.products[0].priceText,'20.00');assert.equal(p.data.quickLines[0].price,2000);assert.equal(p.data.checkoutTotal,'20.00');assert.equal(p.data.cart[0].price,2000);
+});
+
+test('结算前后端报价会纠正过期会员身份，确认框显示真实普通价金额',async()=>{
+ const f=fixture(null),{p,api,products,wx,modals}=f;products[0].skus[0].memberPrice=1600;const old=api.call;
+ api.call=async(action,input)=>action==='identity'?{id:'buyer',isMember:true,phone:'13800000000'}:action==='quoteOrder'?{isMember:false,total:2000,fulfillment:'DINE_IN',settingsRevision:0}:old(action,input);
+ p.data.cart=[{productId:'p',skuId:'s',qty:1}];await p.refresh();assert.equal(p.data.checkoutTotal,'16.00');wx.accept=false;p.checkout();await idle(p);assert.equal(p.data.isMember,false);assert.equal(p.data.checkoutTotal,'20.00');assert.match(modals.at(-1),/普通价.*20.00/);
+});
+
+
+test('充值固定展示五个金额，沿用已配置赠送，缺少的档位按实付充值',async()=>{
+ const {p,api,wx,calls}=fixture();wx.removeStorageSync=k=>wx.setStorageSync(k,null);p.applyMemberPricing=()=>{};p.selectOrder=()=>{};
+ api.call=async(action,input)=>{calls.push({action,input});if(action==='membership')return {enabled:true,balance:0,isMember:false,terms:'储值说明',entries:[],tiers:[{pay:10000,credit:12000},{pay:500,credit:500}]};if(action==='createRecharge')return {id:'topup',total:input.amount};};
+ p.openMembership();await idle(p);assert.deepEqual(Array.from(p.data.member.tiers,t=>t.amount),[5000,10000,20000,30000,50000]);
+ for(const amount of [5000,10000,20000,30000,50000]){p.recharge(event({amount}));await idle(p);const input=calls.filter(c=>c.action==='createRecharge').at(-1).input;assert.equal(input.amount,amount);assert.equal(input.custom,amount!==10000);}
+ assert.equal(p.data.member.tiers[1].creditText,'120.00');
+});
+
+test('自定义卡片限制上限与两位小数，零金额不发起充值，支持按分充值',async()=>{
+ const {p,api,wx,calls}=fixture();wx.removeStorageSync=k=>wx.setStorageSync(k,null);p.setData({member:{tiers:[],terms:'储值说明'}});p.selectOrder=()=>{};
+ api.call=async(action,input)=>{calls.push({action,input});return {id:'topup',total:input.amount};};
+ assert.equal(p.customRechargeField({detail:{value:'5000.01'}}),'5000');assert.equal(p.data.customRecharge,'5000');
+ assert.equal(p.customRechargeField({detail:{value:'12.345'}}),'12.34');
+ assert.equal(p.customRechargeField({detail:{value:'.5'}}),'0.5');
+ p.customRechargeField({detail:{value:'0'}});p.recharge(event({custom:true}));await idle(p);assert.equal(calls.length,0);
+ p.customRechargeField({detail:{value:'0.01'}});p.recharge(event({custom:true}));await idle(p);assert.equal(calls[0].input.amount,1);assert.equal(calls[0].input.custom,true);
+});
+
+
+test('咖啡零库存仍可浏览、加入购物车和立即购买，保留每规格数量上限',async()=>{
+ const {p,products}=fixture();products[0].category='咖啡';products[0].skus[0].stock=0;await p.refresh();
+ const coffee=p.data.products[0];assert.equal(coffee.stockTracked,false);assert.equal(coffee.skus[0].stockTracked,false);
+ p.setData({stockOnly:true,shopSection:'coffee'});p.filter();assert.equal(p.data.visible.length,1);
+ p.detail(event({id:coffee.id}));p.setData({detailQty:2});assert.equal(p.add(),true);assert.equal(p.data.cartInvalid,false);assert.equal(p.data.cart[0].qty,2);
+ p.detail(event({id:coffee.id}));p.buy();assert.equal(p.data.tab,'checkout');assert.equal(p.data.quickLines[0].qty,1);
+ assert.equal(p.validCartQty(99,coffee.skus[0]),true);assert.equal(p.validCartQty(100,coffee.skus[0]),false);
 });

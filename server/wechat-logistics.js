@@ -20,7 +20,7 @@ function createWechatLogistics({store,env=process.env,fetch=globalThis.fetch,now
  return {async tracking(actor,input){
   const o=await store.execute(actor,'order',{id:input.id},{mock:actor.channel!=='wechat'}),s=o.shipping;
   const base={provider:'wechat',company:s?.company||'',number:s?.number||'',events:[],notice:'',canOpen:false};
-  if(o.fulfillment?.type==='PICKUP')return {...base,notice:'自提订单无需查询快递物流'};
+  if(['DINE_IN','PICKUP'].includes(o.fulfillment?.type))return {...base,notice:'堂食或自提订单无需查询快递物流'};
   if(!s)return {...base,notice:'商家尚未发货，发货后可查看快递单号及物流'};
   if(!Object.hasOwn(carriers,s.carrier)||!/^[A-Za-z0-9-]{6,32}$/.test(s.number||''))return {...base,notice:'历史配送记录缺少有效快递公司或运单号，请联系商家核实'};
   if(env.WECHAT_LOGISTICS_ENABLED!=='1'||!env.WECHAT_APPID||!env.WECHAT_MINIPROGRAM_SECRET)return {...base,notice:'物流查询服务尚未开通，可复制快递单号向承运公司查询'};

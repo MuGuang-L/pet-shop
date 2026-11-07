@@ -13,11 +13,12 @@ const simulationNotes=[
  '退出登录会清除当前登录状态，不会删除已保存的使用记录。记录会保留并备份，如需清理，请联系分配账号的维护者。'
 ];
 const homeDefaults={headline:'奇迹空间\n宠物咖啡店',subtitle:'咖啡 · 烘焙 · 宠物友好',featuredTitle:'店主精选',featuredIntro:'一杯咖啡、一口甜点，和毛孩子的小日常',newTitle:'新品上架',scenes:[{key:'meal',category:'主粮',title:'主粮',text:'猫粮 · 狗粮',image:'food-v2'},{key:'play',category:'玩具',title:'玩具',text:'互动 · 磨牙',image:'toy-v2'},{key:'care',category:'清洁',title:'清洁护理',text:'梳理 · 清洁',image:'care-v2'}]};
-function isCoffee(p){return ['咖啡','烘焙'].includes(p.category);}
+function isCoffee(p){return ['咖啡','饮品','烘焙'].includes(p.category);}
+function tracksStock(p){return !['咖啡','饮品'].includes(p.category);}
 function petOf(p){return isCoffee(p)?'不适用':p.petScope||({food:'猫咪',toy:'通用',care:'通用'}[p.id])||'待确认';}
 function featuredOf(p){return p.featured===undefined?['food','toy'].includes(p.id):p.featured;}
 function matches(p,pet){return pet==='全部'||(!isCoffee(p)&&(petOf(p)===pet||petOf(p)==='通用'));}
-function homeProducts(products){const available=products.filter(p=>p.active!==false&&p.skus.some(s=>s.stock>0));return {featured:available.filter(featuredOf).slice(0,4),latest:available.slice().reverse().slice(0,4)};}
+function homeProducts(products){const available=products.filter(p=>p.active!==false&&(!tracksStock(p)||p.skus.some(s=>s.stock>0)));return {featured:available.filter(featuredOf).slice(0,4),latest:available.slice().reverse().slice(0,4)};}
 const templates=[
  {id:'food',name:'主粮',hint:'猫粮 / 狗粮',category:'主粮',image:'food-v2',spec:'1kg',fields:'品牌：\n适用宠物与年龄：\n净含量：\n配料与营养信息：\n保质期与储存方式：\n生产信息：'},
  {id:'snack',name:'零食',hint:'冻干 / 罐头 / 奖励零食',category:'零食',image:'snack-v3',spec:'单包',fields:'品牌：\n适用宠物与年龄：\n口味与净含量：\n配料：\n喂食建议：\n保质期与储存方式：'},
@@ -51,11 +52,14 @@ function create(id='living'){const t=templates.find(t=>t.id===id)||templates[4];
 function productImages(p){return p.images&&p.images.length?p.images.slice():(p.image?[p.image]:['food','toy','care'].includes(p.id)?['/assets/'+p.id+'-v2.jpg']:[]);}
 function withImage(p,src){const images=productImages(p).filter(x=>x!==src);if(images.length>=6)throw Error('最多 6 张图片，请先移除一张');images.unshift(src);return {image:src,images};}
 function withoutImage(p,index){const images=productImages(p);images.splice(index,1);return {image:images[0]||'',images};}
+function priceFor(sku,isMember=false){const regularPrice=sku.regularPrice??sku.price,memberPrice=sku.memberPrice??regularPrice;return {regularPrice,memberPrice,price:isMember?memberPrice:regularPrice,priceType:isMember?'MEMBER':'REGULAR'};}
 function cents(value){const s=String(value).trim();if(!/^\d+(\.\d{1,2})?$/.test(s))throw Error('售价请填写大于 0 的金额，最多两位小数');const [a,b='']=s.split('.');const n=Number(a)*100+Number(b.padEnd(2,'0'));if(!Number.isSafeInteger(n)||n<=0||n>10000000)throw Error('售价须在 0.01～100000 元之间');return n;}
 function images(target){return assets.filter(a=>target==='hero'?a.kind==='横幅':target==='empty'?a.kind==='场景'||a.kind==='分类':target==='avatar'?a.kind==='分类':target==='product'?a.kind==='商品':a.kind!=='横幅'&&a.kind!=='场景');}
 const pickupStore={name:'奇迹空间宠物咖啡店',detail:'海口市美兰区蓝天街道大英山西二街3号海航豪庭A05商业街7#楼7-2#商铺第一层（KIGI Space 奇迹空间）',hours:'每日 10:00—24:00',phone:'19389977085'};
 const issueLabels={OUT_OF_STOCK:'缺货待处理',DELIVERY_FAILED:'快递未送达',PICKUP_DELAY:'自提延期',CONTACT_UNREACHABLE:'联系未果'};
-function fulfillmentLabel(o){if(o.kind==='RECHARGE')return ({PENDING:'充值待付款',COMPLETED:'充值已到账',CANCELLED:'充值已取消',EXPIRED:'充值已关闭',REFUNDED:'充值已退回'})[o.status]||'';if(o.fulfillment?.issue?.status==='OPEN'&&['PAID','SHIPPED'].includes(o.status))return issueLabels[o.fulfillment.issue.type]||'履约待处理';if(o.fulfillment?.type==='PICKUP'){if(o.status==='PAID')return o.fulfillment.readyAt?'待到店自提':'门店备货中';if(o.status==='COMPLETED')return '已自提';}return ({PAID:'商家备货中',SHIPPED:'已发货'})[o.status]||'';}
+function isInStore(o){return ['DINE_IN','PICKUP'].includes(o?.fulfillment?.type);}
+function fulfillmentName(o){return o.kind==='RECHARGE'?'会员充值':({DINE_IN:'堂食',PICKUP:'到店自提',DELIVERY:'快递配送'}[o.fulfillment?.type]||'快递配送');}
+function fulfillmentLabel(o){if(o.fulfillment?.type==='DINE_IN'){if(o.status==='PAID')return o.fulfillment.readyAt?'待取餐':'门店备餐中';if(o.status==='COMPLETED')return '堂食已完成';}if(o.kind==='RECHARGE')return ({PENDING:'充值待付款',COMPLETED:'充值已到账',CANCELLED:'充值已取消',EXPIRED:'充值已关闭',REFUNDED:'充值已退回'})[o.status]||'';if(o.fulfillment?.issue?.status==='OPEN'&&['PAID','SHIPPED'].includes(o.status))return issueLabels[o.fulfillment.issue.type]||'履约待处理';if(o.fulfillment?.type==='PICKUP'){if(o.status==='PAID')return o.fulfillment.readyAt?'待到店自提':'门店备货中';if(o.status==='COMPLETED')return '已自提';}return ({PAID:'商家备货中',SHIPPED:'已发货'})[o.status]||'';}
 const carriers={shunfeng:'顺丰速运',zhongtong:'中通快递',yuantong:'圆通速递',shentong:'申通快递',yunda:'韵达快递',jd:'京东物流',ems:'EMS',youzhengguonei:'邮政包裹',debangkuaidi:'德邦快递',jtexpress:'极兔速递'};
-return {resolveStorefront, isCoffee,carriers,assets,slots,defaults,templates,create,cents,images,pets,simulationNotes,homeDefaults,petOf,featuredOf,matches,homeProducts,productImages,withImage,withoutImage,afterStages,pickupStore,fulfillmentLabel,issueLabels};
+return {priceFor,isInStore,fulfillmentName,resolveStorefront, isCoffee,tracksStock,carriers,assets,slots,defaults,templates,create,cents,images,pets,simulationNotes,homeDefaults,petOf,featuredOf,matches,homeProducts,productImages,withImage,withoutImage,afterStages,pickupStore,fulfillmentLabel,issueLabels};
 });

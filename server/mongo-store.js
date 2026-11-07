@@ -81,7 +81,7 @@ class MongoStore{
   const now=options.now??Date.now();
   if(await this.db.collection('orders').findOne({status:'PENDING',expiresAt:{$lte:now}},{projection:{_id:1}}))await this.execute({id:'system',merchant:true},'expire',{},options);
   if(args.status!=='ALL')filter.status=args.status==='AFTERSALE'?{$in:['REFUND_REQUESTED','REFUNDING','REFUNDED']}:args.status;
-  if(args.fulfillment!=='ALL')filter['value.fulfillment.type']=args.fulfillment==='DELIVERY'?{$ne:'PICKUP'}:'PICKUP';
+  if(args.fulfillment!=='ALL')filter['value.fulfillment.type']=args.fulfillment==='DELIVERY'?{$nin:['PICKUP','DINE_IN','WALLET']}:args.fulfillment;
   if(args.q){const literal=args.q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');filter.$or=[{_id:{$regex:literal,$options:'i'}},{'value.orderNo':{$regex:literal,$options:'i'}},{'value.lines.name':{$regex:literal,$options:'i'}}];if(/^[a0-9]+$/i.test(args.q))filter.$or.push({'value.orderNo':{$exists:false},$expr:{$regexMatch:{input:{$concat:['A',{$switch:{branches:[{case:{$eq:[{$strLenCP:'$_id'},2]},then:'00'},{case:{$eq:[{$strLenCP:'$_id'},3]},then:'0'}],default:''}},{$substrCP:['$_id',1,{$subtract:[{$strLenCP:'$_id'},1]}]}]},regex:literal,options:'i'}}});}
   const session=this.client.startSession();let result;try{await transaction(session,async()=>{const col=this.db.collection('orders');const total=await col.countDocuments(filter,{session}),pages=Math.max(1,Math.ceil(total/args.pageSize)),page=Math.min(args.page,pages);const rows=await this.read('orders').find(filter,{session}).sort({createdAt:-1,_id:-1}).skip((page-1)*args.pageSize).limit(args.pageSize).toArray();const paidCount=await col.countDocuments({...scope,status:'PAID'},{session});result={items:rows.map(x=>orderNumber.present(x.value)),page,pageSize:args.pageSize,total,pages,paidCount};},{readConcern:{level:'snapshot'}});return result;}finally{await session.endSession();}
  }
@@ -132,7 +132,12 @@ class MongoStore{
    const eventDoc=await this.db.collection('payment_events').findOne({_id:hash(eventKey)},{session});
    const docs={products,orders:[orderDoc],address_books:[],idempotency_keys:[],payment_events:eventDoc?[eventDoc]:[],stock_movements:[]};
    const state=stateFrom(meta,docs);
-   const out=(kind==='payment'?settleVerifiedPayment:settleVerifiedRefund)(state,payload,now);
+   const reservations={};
+   if(kind==='refund'&&orderDoc.value.refund?.stockDisposition&&productIds.length){
+    const rows=await this.read('orders').aggregate([{$match:{_id:{$ne:payload.orderId},'value.released':{$ne:true},'value.lines.productId':{$in:productIds},$or:[{status:{$in:['PENDING','PAID']}},{status:{$in:['REFUND_REQUESTED','REFUNDING','REFUNDED']},'value.refund.previous':'PAID'}]}},{$unwind:'$value.lines'},{$match:{'value.lines.productId':{$in:productIds},'value.lines.stockTracked':{$ne:false}}},{$group:{_id:{productId:'$value.lines.productId',skuId:'$value.lines.skuId'},quantity:{$sum:'$value.lines.qty'}}}],{session}).toArray();
+    for(const row of rows)reservations[JSON.stringify([row._id.productId,row._id.skuId])]=row.quantity;
+   }
+   const out=(kind==='payment'?settleVerifiedPayment:settleVerifiedRefund)(state,payload,now,{reservations});
    await this.persist(state,out.state,meta,session,{id:'wechat-pay'},kind==='payment'?'settleVerifiedPayment':'settleVerifiedRefund',docs);
    result=out.result;
   },{readConcern:{level:'snapshot'},writeConcern:{w:'majority'}});return result;}finally{await session.endSession();}

@@ -11,7 +11,7 @@
     let page=1,pages=1;const collected=new Map();
     do{const out=await read({status:'PAID',page,pageSize:50});if(current!==generation)return;
      if(!Array.isArray(out.items)||!Number.isInteger(out.pages)||out.pages<1||out.pages>100)throw Error('INVALID_ALERT_RESPONSE');
-     pages=out.pages;for(const o of out.items)if(!handled.has(o.id)&&o.status==='PAID'&&!(o.fulfillment?.type==='PICKUP'&&o.fulfillment.readyAt))collected.set(o.id,o);
+     pages=out.pages;for(const o of out.items)if(!handled.has(o.id)&&o.status==='PAID'&&!(['DINE_IN','PICKUP'].includes(o.fulfillment?.type)&&o.fulfillment.readyAt))collected.set(o.id,o);
      page++;
     }while(page<=pages);
     const orders=[...collected.values()].filter(o=>!handled.has(o.id));for(const id of stored())seen.add(id);
@@ -27,7 +27,7 @@
  }
  function browser(win){
   const doc=win.document,$=id=>doc.getElementById(id);let service=null,actions=null,audio=null,sound=false,latest=[],orders=[],baseTitle=doc.title,active=false,hideTimer=null;
-  const label=o=>o.fulfillment?.type==='PICKUP'?'到店自提':'快递配送';
+  const label=o=>o.fulfillment?.type==='DINE_IN'?'堂食':o.fulfillment?.type==='PICKUP'?'到店自提':'快递配送';
   function render(state){active=state.active;orders=state.orders;$('order-alert-bar').hidden=!active;if(!active){$('order-alert-toast').hidden=true;doc.title=baseTitle;latest=[];return;}
    $('order-alert-count').textContent='待备货 '+orders.length+' 单';
    $('order-alert-status').textContent=state.error?'提醒连接中断，正在重试；请手动核对订单':'来单提醒已开启';
@@ -40,8 +40,8 @@
   }catch{sound=false;$('order-alert-sound').textContent='点击开启提示音';}}
   function updateNotice(){const fresh=latest;
    $('order-alert-title').textContent='有 '+fresh.length+' 笔付款订单待备货';
-   const pickup=fresh.filter(o=>o.fulfillment?.type==='PICKUP').length;
-   $('order-alert-detail').textContent='自提 '+pickup+' 单 · 快递 '+(fresh.length-pickup)+' 单'+(fresh.some(o=>o.payment?.provider==='MOCK')?'（包含未扣款测试单）':'');
+   const pickup=fresh.filter(o=>o.fulfillment?.type==='PICKUP').length,dine=fresh.filter(o=>o.fulfillment?.type==='DINE_IN').length;
+   $('order-alert-detail').textContent=(dine?'堂食 '+dine+' 单 · ':'')+'自提 '+pickup+' 单 · 快递 '+(fresh.length-pickup-dine)+' 单'+(fresh.some(o=>o.payment?.provider==='MOCK')?'（包含未扣款测试单）':'');
    $('order-alert-open').textContent=fresh.length===1?'查看'+label(fresh[0])+'订单':'查看待处理订单';
   }
   function dismiss(){if(hideTimer!==null)win.clearTimeout(hideTimer);hideTimer=null;$('order-alert-toast').hidden=true;}

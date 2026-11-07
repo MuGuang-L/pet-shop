@@ -1,6 +1,6 @@
 'use strict';
 const need=(ok,message)=>{if(!ok)throw Error(message);};
-const defaults={enabled:false,amounts:[10000,20000,50000],terms:'充值余额仅限本店消费，不计息；商品退款退回余额。充值退款请联系门店，按原支付渠道处理。'};
+const defaults={enabled:false,amounts:[5000,10000,20000,30000,50000],terms:'充值余额仅限本店消费，不计息；商品退款退回余额。充值退款请联系门店，按原支付渠道处理。'};
 function normalizeTiers(member={}){
  const source=Array.isArray(member.tiers)&&member.tiers.length?member.tiers:(Array.isArray(member.amounts)&&member.amounts.length?member.amounts:defaults.amounts).map(item=>typeof item==='number'?{pay:item,credit:item}:item);
  const tiers=source.map(item=>({pay:item.pay,credit:item.credit??item.pay})).sort((a,b)=>a.pay-b.pay);
@@ -11,6 +11,7 @@ function normalizeTiers(member={}){
  return tiers;
 }
 function settings(state){const saved={...defaults,...state.shopSettings?.membership};const tiers=normalizeTiers(saved);return {...saved,tiers,amounts:tiers.map(t=>t.pay)};}
+function isMember(state,id){return Number.isSafeInteger(state.wallets?.[id]?.balance)&&state.wallets[id].balance>0;}
 function account(state,id){state.wallets ||= {};const wallet=state.wallets[id] ||= {balance:0,entries:[]};const phone=state.profiles?.[id]?.phone;if(phone)wallet.phone=phone;return wallet;}
 function movement(state,id,amount,key,label,now){
  const wallet=account(state,id),previous=wallet.entries.find(e=>e.key===key);
@@ -20,17 +21,19 @@ function movement(state,id,amount,key,label,now){
 }
 const actions=new Set(['membership','merchantMembers','createRecharge','balancePay']);
 function handle(state,actor,action,input,now,allocate){
- if(action==='membership'){const w=state.wallets?.[actor.id]||{balance:0,entries:[]};return {...settings(state),...w,entries:w.entries.slice(-50).reverse()};}
+ if(action==='membership'){const w=state.wallets?.[actor.id]||{balance:0,entries:[]};return {...settings(state),...w,isMember:isMember(state,actor.id),entries:w.entries.slice(-50).reverse()};}
  if(action==='merchantMembers'){need(actor.merchant===true,'FORBIDDEN');return Object.entries(state.wallets||{}).map(([id,w])=>{const phone=state.profiles?.[id]?.phone||w.phone||'';return {phone:phone||'未绑定手机号',balance:w.balance,entries:w.entries.slice(-50).reverse()};});}
  need(!actor.merchant,'商家账号不能充值或消费');
  if(action==='createRecharge'){
   need(settings(state).enabled,'门店暂未开放充值');
   need(typeof input.key==='string'&&/^[a-zA-Z0-9_-]{8,80}$/.test(input.key),'IDEMPOTENCY_KEY_REQUIRED');
   const key=JSON.stringify(['recharge',actor.id,input.key]);
-  const tier=settings(state).tiers.find(t=>t.pay===input.amount);need(tier,'请选择有效充值档位');
+  const custom=input.custom===true;
+  need(Number.isSafeInteger(input.amount)&&input.amount>0&&input.amount<=500000,'请选择有效充值档位或输入大于 0 元且不超过 5000 元的自定义金额');
+  if(state.keys[key]){const o=state.orders.find(o=>o.id===state.keys[key].id);need(o&&o.total===input.amount&&(o.rechargeCustom===true)===custom,'充值请求已用于其他金额或方式');return o;}
+  const tier=custom?{pay:input.amount,credit:input.amount}:settings(state).tiers.find(t=>t.pay===input.amount);need(tier,'请选择有效充值档位');
   const yuan=n=>(n/100).toFixed(2),spec=tier.credit===tier.pay?'充值 ¥'+yuan(tier.pay):'支付 ¥'+yuan(tier.pay)+'，到账 ¥'+yuan(tier.credit);
-  if(state.keys[key]){const o=state.orders.find(o=>o.id===state.keys[key].id);need(o&&o.total===input.amount,'充值请求已用于其他金额');if(o.status==='PENDING'&&!o.payment){o.walletCredit=tier.credit;if(o.lines[0])o.lines[0].spec=spec;}else need((o.walletCredit??o.total)===tier.credit,'充值请求已用于其他金额');return o;}
-  const order={id:'o'+(++state.sequence),orderNo:allocate(),kind:'RECHARGE',userId:actor.id,lines:[{productId:'membership',skuId:'recharge',qty:1,name:'会员储值充值',spec,price:tier.pay,image:''}],address:{name:'会员充值',phone:'',detail:'本店会员余额'},fulfillment:{type:'WALLET'},subtotal:tier.pay,shippingFee:0,total:tier.pay,walletCredit:tier.credit,status:'PENDING',createdAt:now,updatedAt:now,expiresAt:now+900000,released:true,refund:null};
+  const order={id:'o'+(++state.sequence),orderNo:allocate(),kind:'RECHARGE',rechargeCustom:custom,userId:actor.id,lines:[{productId:'membership',skuId:'recharge',qty:1,name:'会员储值充值',spec,price:tier.pay,image:''}],address:{name:'会员充值',phone:'',detail:'本店会员余额'},fulfillment:{type:'WALLET'},subtotal:tier.pay,shippingFee:0,total:tier.pay,walletCredit:tier.credit,status:'PENDING',createdAt:now,updatedAt:now,expiresAt:now+900000,released:true,refund:null};
   state.orders.push(order);state.keys[key]={id:order.id};return order;
  }
  const o=state.orders.find(o=>o.id===input.id);need(o&&o.userId===actor.id,'FORBIDDEN');need(o.kind!=='RECHARGE','充值订单不能使用余额支付');
@@ -43,4 +46,4 @@ function credited(order){return Number.isSafeInteger(order.walletCredit)?order.w
 function creditRecharge(state,order,now){const amount=credited(order);movement(state,order.userId,amount,'recharge:'+order.id,(amount===order.total?'微信充值 · ':'微信充值到账 · ')+order.orderNo,now);order.status='COMPLETED';}
 function reserveRechargeRefund(state,order,now){if(order.kind==='RECHARGE'&&order.status==='REFUNDING'&&!order.refund.latePayment)movement(state,order.userId,-credited(order),'recharge-refund:'+order.id,'充值退回原渠道 · '+order.orderNo,now);}
 function refundBalance(state,order,now){if(order.payment?.provider==='BALANCE'){movement(state,order.userId,order.total,'refund:'+order.id,'退款退回余额 · '+order.orderNo,now);order.refund.provider='BALANCE';}}
-module.exports={defaults,normalizeTiers,settings,actions,handle,creditRecharge,reserveRechargeRefund,refundBalance};
+module.exports={isMember,defaults,normalizeTiers,settings,actions,handle,creditRecharge,reserveRechargeRefund,refundBalance};
