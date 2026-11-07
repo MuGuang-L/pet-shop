@@ -45,29 +45,32 @@ function save(state,input,now){
   state.shippingFee=delivery.fee;
   return publicSettings(state,now);
 }
-function quote(state,input,now){
+function quote(state,input,now,actor={}){
   const settings=read(state),type=input.fulfillment||'DELIVERY';
-  need(['PICKUP','DELIVERY'].includes(type),'请选择自提或快递配送');
+  need(['DINE_IN','PICKUP','DELIVERY'].includes(type),'请选择堂食、自提或快递配送');
+  const inStore=type!=='DELIVERY';
+  if(type==='DINE_IN')need(input.pickupAt==null,'堂食仅支持立即取单');
   need(settings.acceptingOrders,'门店已暂停接单，请稍后再试');
   need(openNow(settings,now),'当前不在接单时间内，请在营业时间下单');
-  need(type==='PICKUP'?settings.pickup.enabled:settings.delivery.enabled,type==='PICKUP'?'门店暂未开放到店自提':'门店暂未开放快递配送');
+  need(inStore?settings.pickup.enabled:settings.delivery.enabled,inStore?(type==='DINE_IN'?'门店暂未开放堂食':'门店暂未开放到店自提'):'门店暂未开放快递配送');
   if(input.settingsRevision!==undefined)need(input.settingsRevision===settings.revision,'门店设置已变化，请刷新结算信息后重试');
   need(Array.isArray(input.lines)&&input.lines.length>0&&input.lines.length<=30,'INVALID_LINES');
-  let subtotal=0;const seen=new Set();
+  const isMember=require('./membership').isMember(state,actor.id);
+  let subtotal=0,regularSubtotal=0;const lines=[],seen=new Set();
   for(const line of input.lines){
     need(Number.isSafeInteger(line.qty)&&line.qty>0&&line.qty<=99,'INVALID_QUANTITY');
     const key=line.productId+'|'+line.skuId;need(!seen.has(key),'DUPLICATE_SKU');seen.add(key);
     const product=state.products.find(p=>p.id===line.productId&&p.active);need(product,'PRODUCT_UNAVAILABLE');
-    need(!studio.isCoffee(product)||type==='PICKUP','咖啡和烘焙仅支持到店自提，请将含咖啡或烘焙的订单选择为到店自提');
-    const sku=product.skus.find(k=>k.id===line.skuId);need(sku,'SKU_NOT_FOUND');need(sku.stock>=line.qty,'OUT_OF_STOCK');subtotal+=sku.price*line.qty;
+    need(!studio.isCoffee(product)||inStore,'咖啡和烘焙仅支持到店自提或堂食，请选择到店自提或堂食');
+    const sku=product.skus.find(k=>k.id===line.skuId);need(sku,'SKU_NOT_FOUND');need(!studio.tracksStock(product)||sku.stock>=line.qty,'OUT_OF_STOCK');const pricing=studio.priceFor(sku,isMember);subtotal+=pricing.price*line.qty;regularSubtotal+=pricing.regularPrice*line.qty;lines.push({productId:product.id,skuId:sku.id,qty:line.qty,...pricing});
   }
   need(Number.isSafeInteger(subtotal)&&subtotal<=100000000,'AMOUNT_LIMIT');
   if(type==='DELIVERY')need(subtotal>=settings.delivery.minimum,'配送商品金额须满 '+(settings.delivery.minimum/100).toFixed(2)+' 元');
-  const shippingFee=type==='PICKUP'||(settings.delivery.freeAbove!==null&&subtotal>=settings.delivery.freeAbove)?0:settings.delivery.fee;
+  const shippingFee=inStore||(settings.delivery.freeAbove!==null&&subtotal>=settings.delivery.freeAbove)?0:settings.delivery.fee;
   const total=subtotal+shippingFee;
   if(input.expectedTotal!==undefined)need(input.expectedTotal===total,'订单金额已变化，请刷新结算信息后重试');
-  let pickupAt=null;if(type==='PICKUP'){if(input.pickupAt!==undefined&&input.pickupAt!==null){need(Number.isSafeInteger(input.pickupAt)&&pickupSlots(settings,now).some(slot=>slot.at===input.pickupAt),'自提时间不可选或已过期，请重新选择');pickupAt=input.pickupAt;}else{pickupAt=pickupSlots(settings,now)[1]?.at;need(pickupAt,'未来三天暂无自提时段，请联系门店');}}
-  return {pickupAt,settingsRevision:settings.revision,fulfillment:type,subtotal,shippingFee,total,pickupStore:pickupStore(settings),instructions:type==='PICKUP'?settings.pickup.instructions:settings.delivery.instructions,delivery:type==='DELIVERY'?copy(settings.delivery):null};
+  let pickupAt=null;if(type==='PICKUP'){if(input.pickupAt!==undefined&&input.pickupAt!==null){need(Number.isSafeInteger(input.pickupAt)&&pickupSlots(settings,now).some(slot=>slot.at===input.pickupAt),'自提时间不可选或已过期，请重新选择');pickupAt=input.pickupAt;}}
+  return {isMember,regularSubtotal,lines,pickupAt,settingsRevision:settings.revision,fulfillment:type,subtotal,shippingFee,total,pickupStore:pickupStore(settings),instructions:inStore?settings.pickup.instructions:settings.delivery.instructions,delivery:type==='DELIVERY'?copy(settings.delivery):null};
 }
 module.exports={read,save,publicSettings,pickupStore,openNow,quote,pickupSlots};
-function pickupSlots(settings,now){const result=[{label:'尽快取餐（约 '+(settings.pickup.prepareMinutes??20)+' 分钟）',at:null}];const earliest=now+(settings.pickup.prepareMinutes??20)*60000;let at=Math.ceil(earliest/900000)*900000;for(;at<=now+3*86400000;at+=900000){const d=new Date(at+28800000),day=d.getUTCDay()||7,clock=d.toISOString().slice(11,16);if(settings.hours.days.includes(day)&&(settings.hours.allDay||clock>=settings.hours.open&&(settings.hours.close==='00:00'||clock<settings.hours.close)))result.push({at,label:d.toISOString().slice(5,10)+' '+clock});}result[0].label=result[1]?'尽快取餐 · '+result[1].label:'暂无可选自提时段';return result;}
+function pickupSlots(settings,now){const result=[{label:'尽快取餐（约 '+(settings.pickup.prepareMinutes??20)+' 分钟）',at:null}];const earliest=now+(settings.pickup.prepareMinutes??20)*60000;let at=Math.ceil(earliest/900000)*900000;for(;at<=now+3*86400000;at+=900000){const d=new Date(at+28800000),day=d.getUTCDay()||7,clock=d.toISOString().slice(11,16);if(settings.hours.days.includes(day)&&(settings.hours.allDay||clock>=settings.hours.open&&(settings.hours.close==='00:00'||clock<settings.hours.close)))result.push({at,label:d.toISOString().slice(5,10)+' '+clock});}result[0].label='立即取单';return result;}

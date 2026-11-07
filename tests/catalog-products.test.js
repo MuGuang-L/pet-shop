@@ -17,5 +17,5 @@ for(const product of products)for(const type of studio.isCoffee(product)?['PICKU
  if(type==='PICKUP'){run(merchant,'pickupReady',{id:order.id});run(merchant,'pickupComplete',{id:order.id,confirm:true});}
  else{run(merchant,'ship',{id:order.id,carrier:'shunfeng',number:'LOCAL123456'});run(buyer,'confirmReceipt',{id:order.id});}
  assert.equal(run(buyer,'order',{id:order.id}).status,'COMPLETED');
- assert.equal(state.products.find(p=>p.id===product.id).skus[0].stock,sku.stock-1);
+ assert.equal(state.products.find(p=>p.id===product.id).skus[0].stock,['咖啡','饮品'].includes(product.category)?sku.stock:sku.stock-1);
 });

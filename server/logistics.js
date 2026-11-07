@@ -10,7 +10,7 @@ function createLogistics({store,env=process.env,fetch=globalThis.fetch,now=Date.
   // Always authorize the order before touching cache or making paid external requests.
   const order=await store.execute(actor,'order',{id:input.id},{mock:actor.channel!=='wechat'}),s=order.shipping;
   const base={company:s?.company||'',number:s?.number||'',events:[],provider:'kuaidi100',notice:''};
-  if(order.fulfillment?.type==='PICKUP')return {...base,notice:'自提订单无需查询快递物流'};
+  if(['DINE_IN','PICKUP'].includes(order.fulfillment?.type))return {...base,notice:'堂食或自提订单无需查询快递物流'};
   if(!s)return {...base,notice:'商家尚未发货，发货后可查看快递单号及物流'};
   if(!Object.prototype.hasOwnProperty.call(carriers,s.carrier)||! /^[A-Za-z0-9-]{6,32}$/.test(s.number||''))return {...base,notice:'历史配送记录缺少有效快递公司或运单号，请联系商家核实'};
   if(!key||!customer)return {...base,notice:'物流查询服务尚未开通，可复制快递单号向承运公司查询'};

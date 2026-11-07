@@ -26,12 +26,12 @@ test('咖啡独立分类，报价和下单均拒绝快递，混合订单可以�
  const order=domain.execute(s,buyer,'createOrder',{...input,key:'coffee-pickup',fulfillment:'PICKUP',contact:{name:'测试',phone:'13800000000'}},{mock:true}).result;
  assert.equal(order.fulfillment.type,'PICKUP');assert.equal(order.shippingFee,0);assert.equal(order.lines.length,2);
 });
-test('买家咖啡入口不混入宠物商品，选中咖啡自动自提且取消选择后恢复配送可选',()=>{
+test('买家咖啡入口不混入宠物商品，选中咖啡保持堂食或自提且取消选择后恢复配送可选',()=>{
  let p;vm.runInNewContext(fs.readFileSync('miniprogram/pages/shop/index.js','utf8'),{Page:x=>p=x,require:n=>n.includes('order-display')?require('../miniprogram/services/order-display'):n.includes('studio')?studio:{mode:'cloud'},wx:{setStorageSync(){},pageScrollTo(){}}});
  p.setData=function(x,done){Object.assign(this.data,x);if(done)done();};
  p.data.products=[{id:'coffee',category:'咖啡',name:'拿铁',skus:[{id:'cup',price:2000,stock:5}]},{id:'pet',category:'用品',petScope:'通用',name:'食碗',skus:[{id:'bowl',price:3000,stock:5}]}];
  p.shopSection({currentTarget:{dataset:{value:'coffee'}}});assert.equal(p.data.visible.length,1);assert.equal(p.data.visible[0].id,'coffee');
  p.goPet({currentTarget:{dataset:{value:'狗狗'}}});assert.equal(p.data.shopSection,'pet');assert.equal(p.data.visible.length,1);assert.equal(p.data.visible[0].id,'pet');
- p.data.deliveryEnabled=true;p.data.pickupEnabled=true;p.data.cart=[{productId:'coffee',skuId:'cup',qty:1},{productId:'pet',skuId:'bowl',qty:1}];p.cartTotal();assert.equal(p.data.checkoutPickupOnly,true);assert.equal(p.data.deliveryMode,'PICKUP');assert.equal(p.data.shippingEstimate,'0.00');
- p.deliveryMode({currentTarget:{dataset:{value:'DELIVERY'}}});assert.equal(p.data.deliveryMode,'PICKUP');p.data.cart[0].selected=false;p.cartTotal();assert.equal(p.data.checkoutPickupOnly,false);p.deliveryMode({currentTarget:{dataset:{value:'DELIVERY'}}});assert.equal(p.data.deliveryMode,'DELIVERY');
+ p.data.deliveryEnabled=true;p.data.pickupEnabled=true;p.data.cart=[{productId:'coffee',skuId:'cup',qty:1},{productId:'pet',skuId:'bowl',qty:1}];p.cartTotal();assert.equal(p.data.checkoutPickupOnly,true);assert.equal(p.data.deliveryMode,'DINE_IN');assert.equal(p.data.shippingEstimate,'0.00');
+ p.deliveryMode({currentTarget:{dataset:{value:'DELIVERY'}}});assert.equal(p.data.deliveryMode,'DINE_IN');p.data.cart[0].selected=false;p.cartTotal();assert.equal(p.data.checkoutPickupOnly,false);p.deliveryMode({currentTarget:{dataset:{value:'DELIVERY'}}});assert.equal(p.data.deliveryMode,'DELIVERY');
 });

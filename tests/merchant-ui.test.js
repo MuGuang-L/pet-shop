@@ -403,13 +403,13 @@ test('支付提示按服务配置显示，网络失败不会退回模拟承诺',
  f.run("fetch=async()=>{throw Error('offline');}");await f.run('refreshPaymentMode()');assert.equal(f.run('paymentMode'),'unknown');assert.doesNotMatch(f.node('payment-login-note').textContent,/均为模拟|不产生真实/);
 });
 
-test('真实付款售后明确提示资金且退货地址不预填模拟资料',()=>{
+test('真实退款保留原渠道提示，待确认时显示重试入口',()=>{
  const f=fixture();
  const order={id:'real',status:'REFUNDING',payment:{provider:'WECHAT'},lines:[],refund:{caseId:'r',type:'RETURN_REFUND',amount:100,stage:'WAIT_REFUND',reason:'退货'}};
  f.run(`currentOrder=${JSON.stringify(order)}`);
- const html=f.run('renderAftersales(currentOrder)');assert.match(html,/待微信退款/);assert.match(html,/提交微信退款/);assert.doesNotMatch(html,/待模拟退款|完成模拟退款|不涉及真实资金/);
- const fields=f.run('returnAddressFields(currentOrder)');assert.match(fields,/实际接收退货/);assert.doesNotMatch(fields,/13800000000|模拟省|模拟退货收件人/);
- f.run("currentOrder.payment.provider='MOCK'");assert.match(f.run('renderAftersales(currentOrder)'),/完成退款记录/);assert.doesNotMatch(f.run('returnAddressFields(currentOrder)'),/13800000000|模拟退货收件人/);
+ const html=f.run('renderAftersales(currentOrder)');assert.match(html,/待微信退款/);assert.match(html,/重试微信退款/);assert.doesNotMatch(html,/待模拟退款|完成模拟退款|不涉及真实资金/);
+ assert.doesNotMatch(html,/return-name|return-address|review-stock/);
+ f.run("currentOrder.payment.provider='MOCK'");assert.match(f.run('renderAftersales(currentOrder)'),/完成退款记录/);assert.doesNotMatch(f.run('renderAftersales(currentOrder)'),/return-name|return-address/);
 });
 
 test('订单表格转义商品内容，关闭订单显示中性状态且保留详情入口',()=>{
@@ -425,3 +425,52 @@ test('问卷编辑保留填写内容，添加删除题目，保存及暂停不�
 test('问卷结果转义 HTML，保存失败保留草稿且不误报成功',async()=>{const f=fixture();await f.run("show('survey')");f.run('editSurvey()');f.node('survey-title').value='<script>alert(1)</script>';f.node('survey-enabled').checked=true;f.node('sq-title-0').value='<img src=x>';f.node('sq-type-0').value='single';f.node('sq-required-0').checked=true;f.node('sq-options-0').value='重复\n重复';await f.run('saveSurveyForm({preventDefault(){}})');assert.match(f.node('survey-error').textContent,/不能重复/);assert.equal(f.state().surveys,undefined);assert.equal(f.node('survey-fields').disabled,false);f.node('sq-options-0').value='好\n不好';await f.run('saveSurveyForm({preventDefault(){}})');assert.match(f.node('app').innerHTML,/&lt;script&gt;/);assert.doesNotMatch(f.node('app').innerHTML,/<script>/);});
 
 test('跨日同名 A001 的自提订单按日期准确查找，不能确认另一日订单',async()=>{const f=fixture(),make=key=>f.buyer('createOrder',{key,fulfillment:'PICKUP',contact:{name:'模拟',phone:'13800000000'},lines:[{productId:'toy',skuId:'toy-1',qty:1}]});const one=make('date-check-one'),two=make('date-check-two');f.buyer('mockPay',{id:one.id});f.buyer('mockPay',{id:two.id});const raw=f.state().orders.find(o=>o.id===two.id);raw.createdAt=one.createdAt+86400000;raw.orderNo=one.orderNo;await f.run("show('orders')");f.node('pickup-find-code').value=one.orderNo;f.node('pickup-find-date').value=one.orderDate.replace(/^(....)(..)(..)$/,'$1-$2-$3');await f.run('findPickup()');assert.equal(f.run('currentOrder.id'),one.id);await f.run("orderAction('pickupComplete',{confirm:true})");assert.equal(f.buyer('order',{id:two.id}).status,'PAID');f.run('closeModal(true)');f.node('pickup-find-code').value=one.orderNo;f.node('pickup-find-date').value=require('../cloudfunctions/shop/order-number').day(raw.createdAt).replace(/^(....)(..)(..)$/,'$1-$2-$3');await f.run('findPickup()');assert.equal(f.run('currentOrder.id'),two.id);});
+
+test('充值审批只有同意或不同意，待退款提供重试而不要求库存表单',async()=>{
+ const f=fixture();f.run('fulfillmentAvailable=true');
+ const order={id:'topup',kind:'RECHARGE',status:'REFUND_REQUESTED',total:10000,lines:[{productId:'membership',skuId:'recharge',qty:1,name:'会员充值'}],payment:{provider:'WECHAT'},refund:{stage:'REQUESTED',type:'REFUND_ONLY',previous:'COMPLETED',amount:10000,reason:'退回充值'}};
+ f.run(`currentOrder=${JSON.stringify(order)}`);const html=f.run('renderAftersales(currentOrder)');assert.match(html,/同意退款/);assert.match(html,/不同意/);assert.match(html,/自动按原付款方式退款/);assert.match(html,/含赠送/);assert.doesNotMatch(html,/review-stock|waive-return/);
+ f.run("currentOrder.refund.stage='WAIT_REFUND';currentOrder.status='REFUNDING'");const ready=f.run('renderAftersales(currentOrder)');assert.match(ready,/重试微信退款/);assert.match(ready,/不会重复退款/);
+});
+
+test('堂食在商家待备餐队列，交付按钮和列表不显示为快递',()=>{
+ const f=fixture(),order={id:'dine',orderNo:'A001',createdAt:1,status:'PAID',total:2000,shippingFee:0,lines:[{productId:'food',skuId:'cup',qty:1,name:'咖啡',spec:'热',price:2000}],address:{name:'顾客',phone:'13800000000',detail:'店内'},fulfillment:{type:'DINE_IN',store:{name:'咖啡店',detail:'店内',hours:'每天'}}};
+ f.run(`currentOrder=${JSON.stringify(order)}`);assert.equal(f.run('orderTask(currentOrder)'),'prepare');assert.match(f.run('merchantFulfillment(currentOrder)'),/确认已取餐/);assert.match(f.run('renderOrders([currentOrder])'),/堂食/);assert.doesNotMatch(f.run('merchantFulfillment(currentOrder)'),/安排快递配送/);
+});
+
+test('商家退款只发送一个决定请求，不需要填写审核意见、库存或免退货确认',async()=>{
+ const f=fixture(),o=f.buyer('createOrder',{key:'merchant-simple-ui',fulfillment:'DINE_IN',contact:{name:'顾客',phone:'13800000000'},lines:[{productId:'toy',skuId:'toy-1',qty:1}]});f.buyer('mockPay',{id:o.id});f.buyer('refundRequest',{id:o.id,type:'REFUND_ONLY',reason:'临时取消'});
+ await f.run(`viewOrder('${o.id}')`);const html=f.node('modal-body').innerHTML||f.run('renderAftersales(currentOrder)');assert.match(html,/同意退款/);assert.match(html,/不同意/);assert.doesNotMatch(html,/after-review-note|review-stock|waive-return/);
+ await f.run('reviewAftersale(true)');const mutations=f.calls.filter(c=>['refundReview','mockRefund'].includes(c.action));assert.equal(mutations.length,1);assert.equal(mutations[0].action,'refundReview');assert.equal(mutations[0].input.simple,true);assert.equal(mutations[0].input.approve,true);assert.equal(mutations[0].input.note,undefined);
+});
+
+test('审批失败或退款响应丢失会重新读取订单，显示已审核状态和退款重试入口',async()=>{
+ let first=true;const f=fixture(body=>{if(body.action==='refundReview'&&first){first=false;throw Error('network interruption');}});
+ const o=f.buyer('createOrder',{key:'merchant-refund-retry',fulfillment:'DINE_IN',contact:{name:'顾客',phone:'13800000000'},lines:[{productId:'toy',skuId:'toy-1',qty:1}]});f.buyer('mockPay',{id:o.id});f.buyer('refundRequest',{id:o.id,type:'REFUND_ONLY',reason:'取消'});await f.run(`viewOrder('${o.id}')`);
+ const before=f.calls.filter(c=>c.action==='order').length;await assert.rejects(f.run('reviewAftersale(true)'));assert.ok(f.calls.filter(c=>c.action==='order').length>before);assert.equal(f.run('savingOrder'),false);assert.equal(f.run('currentOrder.refund.stage'),'REQUESTED');
+ await f.run('reviewAftersale(true)');assert.equal(f.run('currentOrder.refund.stage'),'WAIT_REFUND');assert.match(f.run('renderAftersales(currentOrder)'),/完成退款记录/);
+});
+
+test('商品编辑分别填写普通价和会员价，会员价未填写时保存为普通价',async()=>{
+ const f=fixture();await f.run("show('products')");f.run("editor('toy')");fillEditor(f);f.node('sku-price-0').value='28.00';f.node('sku-member-price-0').value='25.00';const payload=f.run('productPayload()');assert.equal(payload.skus[0].price,2800);assert.equal(payload.skus[0].memberPrice,2500);
+ f.node('sku-member-price-0').value='';assert.equal(f.run('productPayload()').skus[0].memberPrice,2800);f.node('sku-member-price-0').value='0';assert.throws(()=>f.run('productPayload()'),/会员价/);
+ const html=f.run('skuFields(editing.skus[0],0)');assert.match(html,/普通价/);assert.match(html,/会员价/);
+});
+
+test('默认会员价跟随普通价修改，单独指定后保留会员价',async()=>{
+ const f=fixture();await f.run("show('products')");f.run("editor('toy')");fillEditor(f);
+ f.node('sku-member-price-0').value='19.00';f.node('sku-member-price-0').dataset={followNormal:'true'};f.node('sku-price-0').value='28.00';f.run('syncSkuPrice(0)');assert.equal(f.node('sku-member-price-0').value,'28.00');
+ f.node('sku-member-price-0').value='25.00';f.run('syncSkuMemberPrice(0)');f.node('sku-price-0').value='30.00';f.run('syncSkuPrice(0)');assert.equal(f.node('sku-member-price-0').value,'25.00');
+ f.node('batch-price').value='32.00';f.run('applySkuPrice()');assert.equal(f.run('editing.skus[0].memberPriceYuan'),'25.00');assert.equal(f.run('editing.skus[0].priceYuan'),'32.00');
+});
+
+
+test('咖啡与饮品编辑不展示库存字段，也不进入低库存提醒；切换到烘焙恢复库存',()=>{
+ const f=fixture();f.run("editor(null,'latte')");
+ assert.ok(!f.run('skuFields(editing.skus[0],0)').includes('sku-stock-'));
+ assert.equal(f.run('productFacts(editing).low'),false);
+ fillEditor(f,{pname:'拿铁',category:'饮品'});f.run('changeEditorCategory()');
+ assert.ok(!f.run('skuFields(editing.skus[0],0)').includes('sku-stock-'));
+ f.node('category').value='烘焙';f.run('changeEditorCategory()');
+ assert.ok(f.run('skuFields(editing.skus[0],0)').includes('sku-stock-'));
+});

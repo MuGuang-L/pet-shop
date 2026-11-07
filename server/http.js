@@ -44,7 +44,20 @@ function createServer(store,{auth=new Auth(),publicOrigin=process.env.PUBLIC_ORI
  if(body.action==='payment'&&gateway.payReady())return send(200,{ok:true,data:await gateway.createPayment(actor,body.input||{},req)});
  if(body.action==='paymentSync'){if(!gateway.payReady())throw Error('REAL_PAYMENT_NOT_CONFIGURED');return send(200,{ok:true,data:await gateway.syncPayment(actor,body.input||{},req)});}
  if(actor.merchant&&['mockRefund','refundFail'].includes(body.action)){const preview=await store.execute(actor,'order',body.input||{},{mock:true});if(preview.payment?.provider==='WECHAT'){if(!gateway.payReady())throw Error('REAL_PAYMENT_NOT_CONFIGURED');if(body.action==='refundFail')throw Error('WECHAT_REFUND_IS_REAL');return send(200,{ok:true,data:await gateway.refund(actor,body.input||{},req)});}}
- authorize(actor,body.action);if(body.action==='bindPhone')body.input=await bindPhone(actor,body.input||{},req);if(body.action==='tracking')return send(200,{ok:true,data:await logistics.tracking(actor,body.input||{})});const data=await store.execute(actor,body.action,body.input||{},{mock});return send(200,{ok:true,data});
+ authorize(actor,body.action);
+ const autoRefund=body.input?.simple===true&&((body.action==='refundReview'&&body.input.approve===true)||body.action==='returnInspect');
+ if(autoRefund&&!gateway.payReady()){
+  const current=await store.execute(actor,'order',{id:body.input.id},{mock});
+  if(current.payment?.provider==='WECHAT'&&current.status!=='REFUNDED')throw Error('REAL_PAYMENT_NOT_CONFIGURED');
+ }
+ if(body.action==='bindPhone')body.input=await bindPhone(actor,body.input||{},req);
+ if(body.action==='tracking')return send(200,{ok:true,data:await logistics.tracking(actor,body.input||{})});
+ let data=await store.execute(actor,body.action,body.input||{},{mock});
+ if(autoRefund&&data.status==='REFUNDING'&&['WAIT_REFUND','REFUND_FAILED'].includes(data.refund?.stage)){
+  const refundInput={id:data.id,caseId:data.refund.caseId};
+  data=data.payment?.provider==='WECHAT'?await gateway.refund(actor,refundInput,req):await store.execute(actor,'mockRefund',refundInput,{mock});
+ }
+ return send(200,{ok:true,data});
  }catch(e){if(e.message==='UPLOAD_BUSY'){res.setHeader('Retry-After','1');return send(503,{ok:false,error:'UPLOAD_BUSY',retryable:true});}const databaseError=/^(Mongo|MysqlUnavailable)/.test(e.name),internalError=['TypeError','RangeError'].includes(e.name)||typeof e.code==='string';const loginBusy=e.message==='LOGIN_BUSY'||e.message==='PAYMENT_REVISION_CONFLICT';const retryable=databaseError||internalError||loginBusy;const status=databaseError||loginBusy?503:internalError?500:e.message==='AUTH_REQUIRED'?401:e.message==='FORBIDDEN'?403:e.message==='LOGIN_RATE_LIMIT'?429:e.message==='BODY_TOO_LARGE'?413:400;if((status===429||loginBusy)&&Number.isInteger(e.retryAfter))res.setHeader('Retry-After',String(Math.min(60,Math.max(1,e.retryAfter))));send(status,{ok:false,error:databaseError?'DATABASE_TEMPORARILY_UNAVAILABLE':internalError?'SERVICE_TEMPORARILY_UNAVAILABLE':e.message,...(retryable?{retryable:true}:{})});}
  }finally{endActivity();}
  });

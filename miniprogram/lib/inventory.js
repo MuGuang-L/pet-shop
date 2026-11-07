@@ -1,4 +1,5 @@
 'use strict';
+const {tracksStock}=require('./studio');
 const need=(ok,code)=>{if(!ok)throw Error(code);};
 const actions=new Set(['adjustStock','stockHistory']);
 const types=['RECEIVE','COUNT','LOSS','PRODUCT_EDIT','INITIAL','RETURN_INSPECTION','FULFILLMENT_RETURN'];
@@ -10,6 +11,7 @@ function record(state,actor,product,sku,before,after,type,reason,now){
 // Older clients may still edit stock through saveProduct. Keep the API compatible
 // while recording those changes with the same transaction as the product update.
 function productChanges(state,actor,before,after,input,now){
+  if(!tracksStock(after))return;
   const reason=input.stockReason===undefined?(before?'商品编辑调整':'商品初始入库'):input.stockReason;
   need(typeof reason==='string'&&reason.trim().length>0&&reason.length<=200,'STOCK_REASON_REQUIRED');
   const old=new Map((before?.skus||[]).map(s=>[s.id,s]));
@@ -39,7 +41,7 @@ function handle(state,actor,action,input,{now,reservedStock}){
   const key=JSON.stringify(['inventory',actor.id,input.requestKey]);
   const fingerprint=JSON.stringify([productId,skuId,revision,type,quantity,reason.trim()]);
   if(state.keys[key]){need(state.keys[key].fingerprint===fingerprint,'STOCK_REQUEST_CONFLICT');return state.keys[key].result;}
-  const product=state.products.find(p=>p.id===productId);need(product,'PRODUCT_NOT_FOUND');
+  const product=state.products.find(p=>p.id===productId);need(product,'PRODUCT_NOT_FOUND');need(tracksStock(product),'咖啡和饮品不需要管理库存，请通过上下架控制售卖');
   need(Number.isSafeInteger(revision)&&revision===(product.revision??0),'PRODUCT_REVISION_CONFLICT');
   const sku=product.skus.find(s=>s.id===skuId);need(sku,'SKU_NOT_FOUND');
   const before=sku.stock,after=type==='COUNT'?quantity:before+(type==='LOSS'?-quantity:quantity);

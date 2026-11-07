@@ -1,5 +1,5 @@
 'use strict';
-const {carriers}=require('./studio');
+const {carriers,isInStore}=require('./studio');
 const actions=new Set(['recordFulfillmentIssue','resolveFulfillmentIssue','merchantRefund']);
 const need=(ok,message)=>{if(!ok)throw Error(message);};
 const titles={OUT_OF_STOCK:'缺货待处理',DELIVERY_FAILED:'快递未送达',PICKUP_DELAY:'自提延期',CONTACT_UNREACHABLE:'联系未果'};
@@ -17,12 +17,14 @@ function stockPlan(order,items){
  return order.lines.map(line=>{const rows=items.filter(i=>i&&i.productId===line.productId&&i.skuId===line.skuId);need(rows.length===1,'商品规格重复或不匹配');const i=rows[0];
   need(Number.isSafeInteger(i.receivedQty)&&i.receivedQty>=0&&i.receivedQty<=line.qty,'在店或取回数量不能超过订单数量');
   need(Number.isSafeInteger(i.restockQty)&&i.restockQty>=0&&i.restockQty<=i.receivedQty,'可售数量不能超过在店或取回数量');
-  return {productId:line.productId,skuId:line.skuId,name:line.name,spec:line.spec,orderedQty:line.qty,receivedQty:i.receivedQty,restockQty:i.restockQty,quarantineQty:i.receivedQty-i.restockQty,missingQty:line.qty-i.receivedQty};
+  need(line.stockTracked!==false||i.restockQty===0,'咖啡和饮品无需回补库存');
+  return {...(line.stockTracked===false?{stockTracked:false}:{}),productId:line.productId,skuId:line.skuId,name:line.name,spec:line.spec,orderedQty:line.qty,receivedQty:i.receivedQty,restockQty:i.restockQty,quarantineQty:i.receivedQty-i.restockQty,missingQty:line.qty-i.receivedQty};
  });
 }
 function settleStock(state,order,actor,now,reservedStock){
  const r=order.refund;if(r.stockDispositionApplied)return;
  for(const item of r.stockDisposition){
+  if(item.stockTracked===false)continue;
   const product=state.products.find(p=>p.id===item.productId),sku=product?.skus.find(s=>s.id===item.skuId),before=sku?.stock??0;
   if(item.restockQty){need(sku,'原商品规格不存在，暂不能完成入库');const otherReserved=reservedStock(state,item.productId,item.skuId)-(r.previous==='PAID'&&!order.released?item.orderedQty:0);need(before+item.restockQty+otherReserved<=100000,'入库后库存超过上限');sku.stock+=item.restockQty;product.revision=(product.revision??0)+1;}
   (state.stockMovements ||= []).push({id:'sm'+(++state.sequence),orderId:order.id,caseId:r.caseId,type:'FULFILLMENT_RETURN',at:now,actor:actor.id,reason:r.reason,...item,before,after:before+item.restockQty,delta:item.restockQty});
@@ -35,7 +37,7 @@ function handle(state,actor,action,input,{now}){
  const key=JSON.stringify(['fulfillment',actor.id,input.requestKey]),fingerprint=JSON.stringify([action,input.id,input.issueId,input.issueRevision,input.type,input.resolution,detail,input.nextAt,input.number,input.carrier,input.confirm,input.items]);
  if(state.keys[key]){need(state.keys[key].fingerprint===fingerprint,'处理请求已提交，请勿改动原请求重试');return order;}
  need(['PAID','SHIPPED'].includes(order.status),'订单状态已变化，请先处理当前订单或售后');
- const f=order.fulfillment||=( {type:'DELIVERY'} ),pickup=f.type==='PICKUP';
+ const f=order.fulfillment||=( {type:'DELIVERY'} ),pickup=isInStore(order);
  if(action==='recordFulfillmentIssue'){
   need(typeof input.type==='string'&&Object.prototype.hasOwnProperty.call(titles,input.type),'请选择有效的履约问题');need(!f.issue||f.issue.status!=='OPEN','已有待处理问题，请先处理或更新约定时间');
   if(input.type==='OUT_OF_STOCK')need(order.status==='PAID','已发货订单请登记快递配送问题');
@@ -69,10 +71,10 @@ function handle(state,actor,action,input,{now}){
 }
 function trackingEvents(order){
  const f=order.fulfillment||{},events=[];
- if(f.type==='PICKUP'){if(f.readyAt)events.push({time:f.readyAt,text:'商品已备好，可到店自提'});if(f.redeemedAt)events.push({time:f.redeemedAt,text:'商家已确认提货'});}
+ if(isInStore(order)){if(f.readyAt)events.push({time:f.readyAt,text:f.type==='DINE_IN'?'餐品已备好，请取餐':'商品已备好，可到店自提'});if(f.redeemedAt)events.push({time:f.redeemedAt,text:f.type==='DINE_IN'?'商家已确认堂食完成':'商家已确认提货'});}
  else [...(f.deliveryHistory||[]),...(order.shipping?[order.shipping]:[])].forEach((s,i)=>events.push({time:s.at,text:(i?'商家已补发快递':'商家已登记发货')+(s.number?' · '+s.number:'')+(s.note?' · '+s.note:'')}));
  for(const issue of [...(f.issueHistory||[]),...(f.issue?[f.issue]:[])])for(const e of issue.timeline||[])if(e.action!=='REDELIVER')events.push({time:e.at,text:e.label+' · '+e.detail,...(e.nextAt?{nextAt:e.nextAt}:{})});
- if(order.status==='COMPLETED'&&f.type!=='PICKUP')events.push({time:order.updatedAt,text:'买家已确认收货'});
+ if(order.status==='COMPLETED'&&!isInStore(order))events.push({time:order.updatedAt,text:'买家已确认收货'});
  return events.sort((a,b)=>a.time-b.time);
 }
 module.exports={actions,handle,titles,finishIssue,settleStock,stockPlan,trackingEvents};
