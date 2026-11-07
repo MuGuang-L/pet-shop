@@ -212,3 +212,29 @@ test('咖啡零库存仍可浏览、加入购物车和立即购买，保留每�
  p.detail(event({id:coffee.id}));p.buy();assert.equal(p.data.tab,'checkout');assert.equal(p.data.quickLines[0].qty,1);
  assert.equal(p.validCartQty(99,coffee.skus[0]),true);assert.equal(p.validCartQty(100,coffee.skus[0]),false);
 });
+
+test('饮品不同搭配分行显示并加价，修改搭配可合并同款，结算只扣对应搭配',async()=>{
+ const f=fixture(null),{p,products,calls}=f;products[0].category='咖啡';products[0].skus[0].stock=0;
+ products[0].optionGroups=[{id:'milk',name:'奶',options:[{id:'regular',name:'牛奶',extraPrice:0},{id:'oat',name:'燕麦奶',extraPrice:300}]}];await p.refresh();
+ p.detail(event({id:'p'}));assert.equal(p.data.detailPriceText,'20.00');p.add();
+ p.detail(event({id:'p'}));p.chooseDrinkOption(event({group:'milk',option:'oat'}));p.setData({detailQty:2});assert.equal(p.data.detailPriceText,'23.00');p.add();
+ assert.equal(p.data.cart.length,2);assert.equal(p.data.cartTotal,'66.00');assert.notEqual(p.data.cart[0].lineKey,p.data.cart[1].lineKey);
+ p.editCartOptions(event({i:0}));p.chooseDrinkOption(event({group:'milk',option:'oat'}));p.add();assert.equal(p.data.cart.length,1);assert.equal(p.data.cart[0].qty,3);assert.equal(p.data.cartTotal,'69.00');
+ p.detail(event({id:'p'}));p.add();p.toggleLine(event({i:0}));acceptOrders(f);p.prepareCheckout();p.checkout();await idle(p);
+ const input=calls.find(c=>c.action==='createOrder').input;assert.equal(input.lines.length,1);assert.equal(input.lines[0].selections[0].optionId,'regular');
+ assert.equal(p.data.cart.length,1);assert.equal(p.data.cart[0].selections[0].optionId,'oat');assert.equal(p.data.cart[0].qty,3);
+});
+
+test('饮品立即购买包含加价，会员身份切换仍保留搭配，选项删除后购物车阻止结算',async()=>{
+ const {p,products}=fixture(null);products[0].category='饮品';products[0].skus[0].memberPrice=1600;
+ products[0].optionGroups=[{id:'milk',name:'奶',options:[{id:'cow',name:'牛奶',extraPrice:0},{id:'oat',name:'燕麦奶',extraPrice:300}]}];await p.refresh();
+ p.detail(event({id:'p'}));p.chooseDrinkOption(event({group:'milk',option:'oat'}));p.buy();assert.equal(p.data.quickLines[0].price,2300);assert.equal(p.data.checkoutTotal,'23.00');
+ p.applyMemberPricing(true);assert.equal(p.data.checkoutTotal,'19.00');assert.match(p.data.quickLines[0].optionsText,/燕麦奶/);
+ p.data.products[0].optionGroups[0].options.pop();p.cartTotal();assert.equal(p.data.cartInvalid,true);assert.match(p.data.quickLines[0].invalid,/失效/);
+});
+
+
+test('饮品所有搭配均加价时，商品列表展示实际最低可购价格',async()=>{
+ const {p,products}=fixture();products[0].category='饮品';products[0].optionGroups=[{id:'milk',name:'奶',options:[{id:'oat',name:'燕麦奶',extraPrice:300},{id:'coconut',name:'椰奶',extraPrice:200}]}];await p.refresh();
+ assert.equal(p.data.products[0].priceText,'22.00');assert.equal(p.data.products[0].priceFrom,true);p.detail(event({id:'p'}));assert.equal(p.data.detailPriceText,'23.00');
+});

@@ -1,7 +1,7 @@
 const api=require('../../services/api');
 const orderDisplay=require('../../services/order-display');
 const statusText={PENDING:'待付款',PAID:'备货中',SHIPPED:'配送中',COMPLETED:'已完成',CANCELLED:'已取消',EXPIRED:'已超时',REFUND_REQUESTED:'售后审核中',REFUNDING:'退款处理中',REFUNDED:'已退款'};
-const display=o=>({...o,...orderDisplay.card(o),statusText:orderDisplay.card(o).statusText||statusText[o.status]||o.status,totalText:(o.total/100).toFixed(2),lines:o.lines.map(line=>({...line,unitText:(line.price/100).toFixed(2),displayImage:line.image||'/assets/empty.png'}))});
+const display=o=>({...o,...orderDisplay.card(o),statusText:orderDisplay.card(o).statusText||statusText[o.status]||o.status,totalText:(o.total/100).toFixed(2),lines:o.lines.map(line=>({...line,lineKey:line.lineKey||JSON.stringify([line.productId,line.skuId]),unitText:(line.price/100).toFixed(2),displayImage:line.image||'/assets/empty.png'}))});
 Page({
  requestEpoch:0,
  onHide(){this.requestEpoch++;this.setData({busy:false,orders:[],page:0,pages:0,total:0});},

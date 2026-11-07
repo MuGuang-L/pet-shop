@@ -1,5 +1,7 @@
 'use strict';
 
+function choiceKey(line){return JSON.stringify((line.selections||[]).map(s=>[s.groupId,s.optionId]).sort((a,b)=>a[0].localeCompare(b[0])));}
+
 // Persist before sending: a lost response or a page restart must reuse the key.
 // The completed phase makes cart updates replayable if storage fails mid-write.
 function read(scope) { return wx.getStorageSync(scope) || null; }
@@ -17,7 +19,7 @@ async function submit(scope, call, cart) {
       throw error;
     }
     const remaining = pending.source === 'quick' ? cart.map(line => ({ ...line })) : cart.map(line => ({ ...line, qty: line.qty - pending.input.lines
-      .filter(item => item.productId === line.productId && item.skuId === line.skuId)
+      .filter(item => item.productId === line.productId && item.skuId === line.skuId && choiceKey(item) === choiceKey(line))
       .reduce((sum, item) => sum + item.qty, 0) })).filter(line => line.qty > 0);
     pending = { ...pending, completed: { order, cart: remaining } };
     write(scope, pending);

@@ -14,11 +14,11 @@ function finishIssue(order,now,resolution,detail,actor='商家'){
 }
 function stockPlan(order,items){
  need(Array.isArray(items)&&items.length===order.lines.length,'请核对全部商品的实际数量');
- return order.lines.map(line=>{const rows=items.filter(i=>i&&i.productId===line.productId&&i.skuId===line.skuId);need(rows.length===1,'商品规格重复或不匹配');const i=rows[0];
+ return order.lines.map(line=>{const rows=items.filter(i=>i&&i.productId===line.productId&&i.skuId===line.skuId&&(i.lineKey||'')===(line.lineKey||''));need(rows.length===1,'商品规格重复或不匹配');const i=rows[0];
   need(Number.isSafeInteger(i.receivedQty)&&i.receivedQty>=0&&i.receivedQty<=line.qty,'在店或取回数量不能超过订单数量');
   need(Number.isSafeInteger(i.restockQty)&&i.restockQty>=0&&i.restockQty<=i.receivedQty,'可售数量不能超过在店或取回数量');
   need(line.stockTracked!==false||i.restockQty===0,'咖啡和饮品无需回补库存');
-  return {...(line.stockTracked===false?{stockTracked:false}:{}),productId:line.productId,skuId:line.skuId,name:line.name,spec:line.spec,orderedQty:line.qty,receivedQty:i.receivedQty,restockQty:i.restockQty,quarantineQty:i.receivedQty-i.restockQty,missingQty:line.qty-i.receivedQty};
+  return {...(line.lineKey?{lineKey:line.lineKey}:{}),...(line.stockTracked===false?{stockTracked:false}:{}),productId:line.productId,skuId:line.skuId,name:line.name,spec:line.spec,orderedQty:line.qty,receivedQty:i.receivedQty,restockQty:i.restockQty,quarantineQty:i.receivedQty-i.restockQty,missingQty:line.qty-i.receivedQty};
  });
 }
 function settleStock(state,order,actor,now,reservedStock){

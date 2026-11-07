@@ -474,3 +474,13 @@ test('咖啡与饮品编辑不展示库存字段，也不进入低库存提醒�
  f.node('category').value='烘焙';f.run('changeEditorCategory()');
  assert.ok(f.run('skuFields(editing.skus[0],0)').includes('sku-stock-'));
 });
+
+test('商家可自定义饮品选项名称与加价，添加选项保留草稿，保存后读取相同配置',async()=>{
+ const f=fixture();f.run("editor(null,'latte');editing.optionGroups=[{id:'milk',name:'奶',options:[{id:'cow',name:'牛奶',extraPrice:0},{id:'oat',name:'燕麦奶',extraPrice:300}]}];renderEditor()");fillEditor(f,{pname:'自选拿铁'});f.node('sku-price-0').value='20.00';
+ const fillChoices=()=>{const groups=JSON.parse(f.run('JSON.stringify(editing.optionGroups)'));groups.forEach((g,i)=>{f.node('drink-group-'+i).value=g.name;g.options.forEach((o,j)=>{f.node('drink-name-'+i+'-'+j).value=o.name;f.node('drink-extra-'+i+'-'+j).value=o.extraPriceYuan??(o.extraPrice/100).toFixed(2);});});};
+ fillChoices();f.node('drink-group-0').value='自选奶';f.node('drink-extra-0-1').value='3.50';f.run('addDrinkChoice(0)');
+ assert.equal(f.run('editing.optionGroups[0].name'),'自选奶');assert.equal(f.run('editing.optionGroups[0].options[1].extraPriceYuan'),'3.50');
+ f.run("editing.optionGroups[0].options[2].name='厚椰乳'");fillChoices();f.node('drink-extra-0-2').value='2';
+ const payload=JSON.parse(f.run('JSON.stringify(productPayload())'));assert.equal(payload.optionGroups[0].options[1].extraPrice,350);assert.equal(payload.optionGroups[0].options[2].extraPrice,200);
+ await f.run('saveProduct({preventDefault(){}})');const saved=f.state().products.at(-1);assert.equal(saved.optionGroups[0].name,'自选奶');assert.equal(saved.optionGroups[0].options[1].extraPrice,350);
+});

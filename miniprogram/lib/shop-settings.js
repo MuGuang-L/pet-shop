@@ -59,10 +59,10 @@ function quote(state,input,now,actor={}){
   let subtotal=0,regularSubtotal=0;const lines=[],seen=new Set();
   for(const line of input.lines){
     need(Number.isSafeInteger(line.qty)&&line.qty>0&&line.qty<=99,'INVALID_QUANTITY');
-    const key=line.productId+'|'+line.skuId;need(!seen.has(key),'DUPLICATE_SKU');seen.add(key);
+    const key=studio.lineKey(line);need(!seen.has(key),'DUPLICATE_SKU');seen.add(key);
     const product=state.products.find(p=>p.id===line.productId&&p.active);need(product,'PRODUCT_UNAVAILABLE');
     need(!studio.isCoffee(product)||inStore,'咖啡和烘焙仅支持到店自提或堂食，请选择到店自提或堂食');
-    const sku=product.skus.find(k=>k.id===line.skuId);need(sku,'SKU_NOT_FOUND');need(!studio.tracksStock(product)||sku.stock>=line.qty,'OUT_OF_STOCK');const pricing=studio.priceFor(sku,isMember);subtotal+=pricing.price*line.qty;regularSubtotal+=pricing.regularPrice*line.qty;lines.push({productId:product.id,skuId:sku.id,qty:line.qty,...pricing});
+    const sku=product.skus.find(k=>k.id===line.skuId);need(sku,'SKU_NOT_FOUND');need(!studio.tracksStock(product)||sku.stock>=line.qty,'OUT_OF_STOCK');const choices=studio.resolveOptions(product,line.selections),pricing=studio.priceWithOptions(sku,isMember,choices);subtotal+=pricing.price*line.qty;regularSubtotal+=pricing.regularPrice*line.qty;lines.push({productId:product.id,skuId:sku.id,qty:line.qty,...pricing,...(choices.options.length?{selections:choices.selections,optionsText:choices.text}:{})});
   }
   need(Number.isSafeInteger(subtotal)&&subtotal<=100000000,'AMOUNT_LIMIT');
   if(type==='DELIVERY')need(subtotal>=settings.delivery.minimum,'配送商品金额须满 '+(settings.delivery.minimum/100).toFixed(2)+' 元');

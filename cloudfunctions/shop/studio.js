@@ -15,6 +15,47 @@ const simulationNotes=[
 const homeDefaults={headline:'奇迹空间\n宠物咖啡店',subtitle:'咖啡 · 烘焙 · 宠物友好',featuredTitle:'店主精选',featuredIntro:'一杯咖啡、一口甜点，和毛孩子的小日常',newTitle:'新品上架',scenes:[{key:'meal',category:'主粮',title:'主粮',text:'猫粮 · 狗粮',image:'food-v2'},{key:'play',category:'玩具',title:'玩具',text:'互动 · 磨牙',image:'toy-v2'},{key:'care',category:'清洁',title:'清洁护理',text:'梳理 · 清洁',image:'care-v2'}]};
 function isCoffee(p){return ['咖啡','饮品','烘焙'].includes(p.category);}
 function tracksStock(p){return !['咖啡','饮品'].includes(p.category);}
+function normalizeOptionGroups(product,source=[]){
+ const need=(ok,message)=>{if(!ok)throw Error(message);};
+ need(Array.isArray(source)&&source.length<=8,'自定义选项最多 8 组');
+ need(!source.length||!tracksStock(product),'自定义饮品选项仅适用于咖啡和饮品');
+ const groups=new Set(),names=new Set(),validId=id=>typeof id==='string'&&/^[\w-]{1,60}$/.test(id);
+ return source.map(group=>{
+  need(group&&validId(group.id)&&!groups.has(group.id),'选项组编号无效或重复');groups.add(group.id);
+  need(typeof group.name==='string'&&group.name.trim()&&group.name.trim().length<=20&&!names.has(group.name.trim()),'选项组名称须为 1～20 字且不能重复');names.add(group.name.trim());
+  need(Array.isArray(group.options)&&group.options.length>=1&&group.options.length<=12,'每组选项须为 1～12 个');
+  const ids=new Set(),labels=new Set();
+  return {id:group.id,name:group.name.trim(),options:group.options.map(option=>{
+   need(option&&validId(option.id)&&!ids.has(option.id),'选项编号无效或重复');ids.add(option.id);
+   need(typeof option.name==='string'&&option.name.trim()&&option.name.trim().length<=30&&!labels.has(option.name.trim()),'选项名称须为 1～30 字且同组不能重复');labels.add(option.name.trim());
+   const extraPrice=option.extraPrice??0;need(Number.isSafeInteger(extraPrice)&&extraPrice>=0&&extraPrice<=1000000,'选项加价须为 0～10000 元');
+   return {id:option.id,name:option.name.trim(),extraPrice};
+  })};
+ });
+}
+function normalizeSelections(source=[]){
+ if(!Array.isArray(source)||source.length>8)throw Error('请选择有效的饮品选项');
+ const seen=new Set();return source.map(item=>{
+  if(!item||typeof item.groupId!=='string'||typeof item.optionId!=='string'||! /^[\w-]{1,60}$/.test(item.groupId)||! /^[\w-]{1,60}$/.test(item.optionId)||seen.has(item.groupId))throw Error('饮品选项无效或重复');
+  seen.add(item.groupId);return {groupId:item.groupId,optionId:item.optionId};
+ }).sort((a,b)=>a.groupId.localeCompare(b.groupId));
+}
+function lineKey(line){const choices=normalizeSelections(line.selections);return JSON.stringify([line.productId,line.skuId,...choices.map(item=>[item.groupId,item.optionId])]);}
+function sameLine(a,b){return lineKey(a)===lineKey(b);}
+function resolveOptions(product,source=[]){
+ const selections=normalizeSelections(source),groups=product.optionGroups||[];
+ if(selections.length!==groups.length)throw Error('饮品选项已变化，请重新选择');
+ const options=groups.map(group=>{const selected=selections.find(s=>s.groupId===group.id),option=selected&&group.options.find(o=>o.id===selected.optionId);
+  if(!option)throw Error('请重新选择'+group.name+'，原选项已失效');
+  return {groupId:group.id,groupName:group.name,optionId:option.id,optionName:option.name,extraPrice:option.extraPrice??0};
+ });
+ return {selections,options,extra:options.reduce((sum,o)=>sum+o.extraPrice,0),text:options.map(o=>o.groupName+'：'+o.optionName).join(' / ')};
+}
+function priceWithOptions(sku,isMember,options){
+ const base=priceFor(sku,isMember);if(!options.options.length)return base;
+ const extra=options.extra;for(const value of [base.price,base.regularPrice,base.memberPrice])if(!Number.isSafeInteger(extra)||extra<0||!Number.isSafeInteger(value+extra)||value+extra>10000000)throw Error('饮品搭配金额超出限额');
+ return {...base,basePrice:base.price,optionsExtra:extra,price:base.price+extra,regularPrice:base.regularPrice+extra,memberPrice:base.memberPrice+extra};
+}
 function petOf(p){return isCoffee(p)?'不适用':p.petScope||({food:'猫咪',toy:'通用',care:'通用'}[p.id])||'待确认';}
 function featuredOf(p){return p.featured===undefined?['food','toy'].includes(p.id):p.featured;}
 function matches(p,pet){return pet==='全部'||(!isCoffee(p)&&(petOf(p)===pet||petOf(p)==='通用'));}
@@ -61,5 +102,5 @@ function isInStore(o){return ['DINE_IN','PICKUP'].includes(o?.fulfillment?.type)
 function fulfillmentName(o){return o.kind==='RECHARGE'?'会员充值':({DINE_IN:'堂食',PICKUP:'到店自提',DELIVERY:'快递配送'}[o.fulfillment?.type]||'快递配送');}
 function fulfillmentLabel(o){if(o.fulfillment?.type==='DINE_IN'){if(o.status==='PAID')return o.fulfillment.readyAt?'待取餐':'门店备餐中';if(o.status==='COMPLETED')return '堂食已完成';}if(o.kind==='RECHARGE')return ({PENDING:'充值待付款',COMPLETED:'充值已到账',CANCELLED:'充值已取消',EXPIRED:'充值已关闭',REFUNDED:'充值已退回'})[o.status]||'';if(o.fulfillment?.issue?.status==='OPEN'&&['PAID','SHIPPED'].includes(o.status))return issueLabels[o.fulfillment.issue.type]||'履约待处理';if(o.fulfillment?.type==='PICKUP'){if(o.status==='PAID')return o.fulfillment.readyAt?'待到店自提':'门店备货中';if(o.status==='COMPLETED')return '已自提';}return ({PAID:'商家备货中',SHIPPED:'已发货'})[o.status]||'';}
 const carriers={shunfeng:'顺丰速运',zhongtong:'中通快递',yuantong:'圆通速递',shentong:'申通快递',yunda:'韵达快递',jd:'京东物流',ems:'EMS',youzhengguonei:'邮政包裹',debangkuaidi:'德邦快递',jtexpress:'极兔速递'};
-return {priceFor,isInStore,fulfillmentName,resolveStorefront, isCoffee,tracksStock,carriers,assets,slots,defaults,templates,create,cents,images,pets,simulationNotes,homeDefaults,petOf,featuredOf,matches,homeProducts,productImages,withImage,withoutImage,afterStages,pickupStore,fulfillmentLabel,issueLabels};
+return {normalizeOptionGroups,normalizeSelections,lineKey,sameLine,resolveOptions,priceWithOptions,priceFor,isInStore,fulfillmentName,resolveStorefront, isCoffee,tracksStock,carriers,assets,slots,defaults,templates,create,cents,images,pets,simulationNotes,homeDefaults,petOf,featuredOf,matches,homeProducts,productImages,withImage,withoutImage,afterStages,pickupStore,fulfillmentLabel,issueLabels};
 });
